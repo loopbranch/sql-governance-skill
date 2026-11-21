@@ -1,0 +1,4 @@
+interface:
+  display_name: "SQL Governance"
+  short_description: "SQL 规范检视、确认与门禁"
+  default_prompt: "检查当前任务或变更中的 SQL 行为，应用共享规则并输出分层报告；结构性变更先取得开发者明确确认。"
