@@ -7,7 +7,7 @@
 ### Fixed
 
 - PostgreSQL 的列名、类型及表达式中的 `engine`、`charset` 和 `auto_increment` 可以通过同名 MySQL 表语法筛查。
-- PostgreSQL 模式发现 MySQL 表选项、自增列属性、`MODIFY`/`CHANGE` 或反引号标识符时输出 `POSTGRESQL-TAB-001` Warn，提示复核数据库兼容性。
+- PostgreSQL 模式发现 MySQL 表选项、列属性、MySQL 特有的 `ALTER TABLE` 子句或反引号标识符时输出 `POSTGRESQL-TAB-001` Warn，提示复核数据库兼容性。
 
 ## [2.0.0] - 2026-11-21
 

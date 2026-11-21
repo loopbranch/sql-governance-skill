@@ -49,10 +49,10 @@
       "dialects": [
         "postgresql"
       ],
-      "condition": "在 PostgreSQL 检视中，发现 MySQL 表选项、列自增属性、MODIFY/CHANGE 子句或反引号标识符时提示核对真实目标方言和迁移写法。普通同名列、类型和表达式按 PostgreSQL 语义检视。该提示不阻断自动门禁。",
+      "condition": "在 PostgreSQL 检视中，发现 MySQL 表选项、列属性、MySQL 特有的 ALTER 子句或反引号标识符时提示核对真实目标方言和迁移写法。普通同名列、类型和表达式按 PostgreSQL 语义检视。该提示不阻断自动门禁。",
       "check": {
         "kind": "hybrid",
-        "detector": "按 DDL 位置筛查 ENGINE、字符集、AUTO_INCREMENT 和 MODIFY/CHANGE 子句，识别 SQL 中的反引号标识符，并由人工核实适用方言。",
+        "detector": "按 DDL 位置筛查表选项、字符集转换、列属性及 MySQL 特有的 ALTER 子句，同时识别反引号标识符，并由人工核实适用方言。",
         "review_gate": "warn"
       },
       "examples": {

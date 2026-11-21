@@ -55,6 +55,7 @@ class SqlGuardTest(unittest.TestCase):
             "flag int default case when true then auto_increment '1' else 0 end) using engine tablespace charset;",
             "alter table café alter column flag set default engine 'on' = engine 'off';",
             "alter table inventory add column auto_increment boolean;",
+            "alter table inventory add index varchar(10);",
             "alter table inventory add column engine text constraint auto_increment check (engine = 'x');",
             'create table if not exists "engine" (id uuid primary key, "auto_increment" boolean);',
             'select id from "legacy`name" where id = 1;',
@@ -76,6 +77,16 @@ class SqlGuardTest(unittest.TestCase):
             "add column id bigint auto_increment primary key;",
             "alter table t_user modify column name varchar(64) not null;",
             "alter table t_user change column old_name new_name varchar(64);",
+            "alter table t_user convert to character set utf8mb4;",
+            "alter table t_user add column name varchar(20) character set utf8mb4;",
+            "alter table t_user drop index idx_user;",
+            "alter table t_user drop foreign key fk_user;",
+            "alter table t_user drop primary key;",
+            "alter table t_user drop partition p1;",
+            "alter table t_user add index idx_user (id);",
+            "create table if not exists t_user (id int unsigned primary key);",
+            "create table if not exists t_user (id int primary key) row_format=dynamic;",
+            "create table if not exists t_user (id int primary key) comment='users';",
             "select id from `inventory`;",
         ):
             with self.subTest(sql=sql):
@@ -83,6 +94,21 @@ class SqlGuardTest(unittest.TestCase):
                 self.assertEqual([("POSTGRESQL-TAB-001", "warn")], [
                     (item.rule_id, item.gate) for item in findings
                 ])
+
+    def test_postgresql_drop_column_named_index_is_still_blocked(self) -> None:
+        for action in ("drop index cascade", "drop column index", "drop index idx_user, drop column legacy"):
+            with self.subTest(action=action):
+                _, findings = sql_guard.inspect("table.sql", f"alter table t_user {action};", "postgresql")
+                self.assertIn(("POSTGRESQL-GUPG-003", "block"), [
+                    (item.rule_id, item.gate) for item in findings
+                ])
+
+    def test_adding_postgresql_foreign_key_is_still_blocked(self) -> None:
+        sql = "alter table t_child add constraint fk_parent foreign key (parent_id) references t_parent(id);"
+        _, findings = sql_guard.inspect("table.sql", sql, "postgresql")
+        self.assertEqual([("POSTGRESQL-GTAB-004", "block")], [
+            (item.rule_id, item.gate) for item in findings
+        ])
 
     def test_auto_detects_table_syntax_by_position(self) -> None:
         pg = "create table if not exists t_user (id uuid primary key, engine text check (engine = 'x'));"

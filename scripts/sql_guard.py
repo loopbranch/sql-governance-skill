@@ -220,12 +220,7 @@ def detect_dialect(sql: str, *, mysql_no_backslash_escapes: bool = False) -> str
             create_table = CREATE_TABLE_RE.match(ddl)
             columns = table_segments(ddl) if create_table else []
             if dialect == "mysql":
-                mysql_column = any(re.match(
-                    rf"{IDENTIFIER}\s+(?:tinyint|smallint|mediumint|int|integer|bigint|decimal|numeric|float|double)"
-                    r"(?:\s*\([^)]+\))?\s+unsigned\b",
-                    column,
-                ) for column in columns)
-                if "`" in masked or mysql_column or has_mysql_table_options(ddl):
+                if "`" in masked or has_mysql_table_options(ddl):
                     evidence.add(dialect)
             else:
                 pg_column = any(re.match(
@@ -353,13 +348,21 @@ def table_segments(normalized: str) -> list[str]:
 
 
 MYSQL_TABLE_OPTION = re.compile(
-    rf"^(?:engine|(?:default\s+)?(?:charset|character\s+set))(?:\s*=\s*|\s+){IDENTIFIER}"
-    r"|^auto_increment(?:\s*=\s*|\s+)\d+\b"
+    rf"^(?:engine|row_format|(?:default\s+)?(?:charset|character\s+set))(?:\s*=|\s+{IDENTIFIER})"
+    r"|^auto_increment(?:\s*=\s*|\s+)\d+\b|^comment\s*="
+)
+MYSQL_DROP_TABLE_ACTION = re.compile(
+    rf"^drop\s+(?:primary\s+key\b|foreign\s+key\s+{IDENTIFIER}"
+    rf"|(?:index|key|partition)\s+(?!(?:cascade|restrict)\b){IDENTIFIER})"
+)
+MYSQL_ALTER_TABLE_ACTION = re.compile(
+    r"^(?:modify|change)\s+|^convert\s+to\s+character\s+set\s+"
+    rf"|^add\s+(?:index|key)\s+{IDENTIFIER}\s*\(\s*(?:{IDENTIFIER}|\()"
 )
 ADD_COLUMN = re.compile(r"^add\s+(?:column\s+)?(?:if\s+not\s+exists\s+)?")
 
 
-def has_mysql_auto_increment(columns: list[str]) -> bool:
+def has_mysql_column_attributes(columns: list[str]) -> bool:
     for column in columns:
         name = re.match(IDENTIFIER, column)
         if not name or name.group() in {"check", "constraint", "foreign", "key", "like", "primary", "unique"}:
@@ -371,8 +374,11 @@ def has_mysql_auto_increment(columns: list[str]) -> bool:
         for word, start, _ in top_level_words(definition)[1:]:
             if word in {"check", "constraint", "default", "generated", "references"}:
                 break
-            if word == "auto_increment" and previous != "collate" and not definition[:start].rstrip().endswith("."):
+            if word == "set" and previous == "character":
                 return True
+            if word in {"auto_increment", "unsigned", "zerofill"}:
+                if previous != "collate" and not definition[:start].rstrip().endswith("."):
+                    return True
             previous = word
     return False
 
@@ -390,19 +396,19 @@ def has_mysql_table_options(ddl: str) -> bool:
                 break
             if MYSQL_TABLE_OPTION.match(tail[start:]):
                 return True
-        return has_mysql_auto_increment(table_segments(ddl))
+        return has_mysql_column_attributes(table_segments(ddl))
 
     alter = re.match(rf"^alter\s+table\s+(?:if\s+exists\s+)?(?:only\s+)?{TABLE_NAME}(?:\s*\*)?\s+", ddl)
     if not alter:
         return False
     for action in comma_separated(ddl[alter.end():]):
-        if MYSQL_TABLE_OPTION.match(action) or re.match(r"^(?:modify|change)\s+", action):
+        if any(check.match(action) for check in (MYSQL_TABLE_OPTION, MYSQL_ALTER_TABLE_ACTION, MYSQL_DROP_TABLE_ACTION)):
             return True
         column = ADD_COLUMN.match(action)
         if column:
             definition = action[column.end():].lstrip()
             columns = comma_separated(definition[1:]) if definition.startswith("(") else [definition]
-            if has_mysql_auto_increment(columns):
+            if has_mysql_column_attributes(columns):
                 return True
     return False
 
@@ -436,10 +442,13 @@ def drops_column(normalized: str, dialect: str) -> bool:
         return False
     # An action starts after the table name or a top-level comma.
     exclusions = "index|key|primary|foreign|partition|constraint" if dialect == "mysql" else "constraint"
+    actions = comma_separated(normalized[table.end():])
+    if dialect == "postgresql":
+        actions = [action for action in actions if not MYSQL_DROP_TABLE_ACTION.match(action)]
     return any(re.match(
         rf"^drop\s+(?:column\s+(?:if\s+exists\s+)?{IDENTIFIER}|(?!(?:{exclusions})\b)(?:if\s+exists\s+)?{IDENTIFIER})",
         action,
-    ) for action in comma_separated(normalized[table.end():]))
+    ) for action in actions)
 
 
 def cte_bodies(masked: str) -> list[tuple[int, int]]:
@@ -504,7 +513,7 @@ def inspect_statement(file: str, line: int, statement: str, dialect: str, *, mys
             if "limit" in tail_names:
                 add(findings, file, line, f"{'MYSQL' if dialect == 'mysql' else 'POSTGRESQL'}-UPD-001", dialect, "Top-level UPDATE LIMIT is prohibited; use a stable-key batch design", statement)
 
-    if re.search(r"\bforeign\s+key\b|\breferences\s+[a-z0-9_`\"]+\s*\(", normalized):
+    if re.search(r"(?<!\bdrop )\bforeign\s+key\b|\breferences\s+[a-z0-9_`\"]+\s*\(", normalized):
         add(findings, file, line, split_rule_id(dialect, "G.TAB.04"), dialect, "Foreign keys are prohibited", statement)
     create_table = CREATE_TABLE_RE.match(normalized)
     alter_table = re.match(r"^alter\s+table\b", normalized)
