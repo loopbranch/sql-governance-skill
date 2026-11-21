@@ -221,13 +221,11 @@ def detect_dialect(sql: str, *, mysql_no_backslash_escapes: bool = False) -> str
             columns = table_segments(ddl) if create_table else []
             if dialect == "mysql":
                 mysql_column = any(re.match(
-                    rf"{IDENTIFIER}\s+(?:(?:tinyint|smallint|mediumint|int|integer|bigint|decimal|numeric|float|double)"
-                    r"(?:\s*\([^)]+\))?\s+unsigned\b|\w+\b.*\bauto_increment\b)",
+                    rf"{IDENTIFIER}\s+(?:tinyint|smallint|mediumint|int|integer|bigint|decimal|numeric|float|double)"
+                    r"(?:\s*\([^)]+\))?\s+unsigned\b",
                     column,
                 ) for column in columns)
-                if "`" in masked or mysql_column or (create_table and re.search(
-                    r"\bengine\s*=|\bdefault\s+charset\b", masked,
-                )):
+                if "`" in masked or mysql_column or has_mysql_table_options(ddl):
                     evidence.add(dialect)
             else:
                 pg_column = any(re.match(
@@ -258,6 +256,9 @@ def add(findings: list[Finding], file: str, line: int, rule_id: str, dialect: st
     findings.append(Finding(file, line, rule_id, gate, dialect, message, compact(statement)))
 
 
+UNQUOTED_IDENTIFIER = r"[^\W\d][\w$]*"
+
+
 def top_level_words(sql: str) -> list[tuple[str, int, int]]:
     """Return lowercase word tokens outside parentheses, with source offsets."""
     words: list[tuple[str, int, int]] = []
@@ -284,7 +285,7 @@ def top_level_words(sql: str) -> list[tuple[str, int, int]]:
             depth = max(0, depth - 1)
             index += 1
             continue
-        match = re.match(r"[a-z_][a-z0-9_$]*", sql[index:], re.IGNORECASE)
+        match = re.match(UNQUOTED_IDENTIFIER, sql[index:])
         if match:
             end = index + len(match.group(0))
             if depth == 0:
@@ -316,7 +317,7 @@ CREATE_TABLE_RE = re.compile(
 )
 
 
-IDENTIFIER = r'(?:`(?:[^`]|``)+`|"(?:[^"]|"")+"|[a-z_][a-z0-9_$]*)'
+IDENTIFIER = rf'(?:`(?:[^`]|``)+`|"(?:[^"]|"")+"|{UNQUOTED_IDENTIFIER})'
 TABLE_NAME = rf"{IDENTIFIER}(?:\s*\.\s*{IDENTIFIER})?"
 
 
@@ -349,6 +350,61 @@ def table_segments(normalized: str) -> list[str]:
     if not table:
         return []
     return comma_separated(normalized[create.end() + table.end():])
+
+
+MYSQL_TABLE_OPTION = re.compile(
+    rf"^(?:engine|(?:default\s+)?(?:charset|character\s+set))(?:\s*=\s*|\s+){IDENTIFIER}"
+    r"|^auto_increment(?:\s*=\s*|\s+)\d+\b"
+)
+ADD_COLUMN = re.compile(r"^add\s+(?:column\s+)?(?:if\s+not\s+exists\s+)?")
+
+
+def has_mysql_auto_increment(columns: list[str]) -> bool:
+    for column in columns:
+        name = re.match(IDENTIFIER, column)
+        if not name or name.group() in {"check", "constraint", "foreign", "key", "like", "primary", "unique"}:
+            continue
+        definition = column[name.end():]
+        previous = ""
+        # The first word is the type. Defaults and generated expressions can
+        # legitimately refer to a type, function or column named auto_increment.
+        for word, start, _ in top_level_words(definition)[1:]:
+            if word in {"check", "constraint", "default", "generated", "references"}:
+                break
+            if word == "auto_increment" and previous != "collate" and not definition[:start].rstrip().endswith("."):
+                return True
+            previous = word
+    return False
+
+
+def has_mysql_table_options(ddl: str) -> bool:
+    """Screen table options and column attributes at their DDL positions."""
+    create = CREATE_TABLE_RE.match(ddl)
+    if create:
+        header = re.match(rf"\s+(?:if\s+not\s+exists\s+)?{TABLE_NAME}", ddl[create.end():])
+        if not header:
+            return False
+        tail = ddl[create.end() + header.end():]
+        for word, start, _ in top_level_words(tail):
+            if word in {"as", "inherits", "like", "of", "on", "partition", "select", "tablespace", "using", "with"}:
+                break
+            if MYSQL_TABLE_OPTION.match(tail[start:]):
+                return True
+        return has_mysql_auto_increment(table_segments(ddl))
+
+    alter = re.match(rf"^alter\s+table\s+(?:if\s+exists\s+)?(?:only\s+)?{TABLE_NAME}(?:\s*\*)?\s+", ddl)
+    if not alter:
+        return False
+    for action in comma_separated(ddl[alter.end():]):
+        if MYSQL_TABLE_OPTION.match(action) or re.match(r"^(?:modify|change)\s+", action):
+            return True
+        column = ADD_COLUMN.match(action)
+        if column:
+            definition = action[column.end():].lstrip()
+            columns = comma_separated(definition[1:]) if definition.startswith("(") else [definition]
+            if has_mysql_auto_increment(columns):
+                return True
+    return False
 
 
 def primary_key_definitions(normalized: str) -> list[str]:
@@ -451,6 +507,12 @@ def inspect_statement(file: str, line: int, statement: str, dialect: str, *, mys
     if re.search(r"\bforeign\s+key\b|\breferences\s+[a-z0-9_`\"]+\s*\(", normalized):
         add(findings, file, line, split_rule_id(dialect, "G.TAB.04"), dialect, "Foreign keys are prohibited", statement)
     create_table = CREATE_TABLE_RE.match(normalized)
+    alter_table = re.match(r"^alter\s+table\b", normalized)
+    ddl = ""
+    if create_table or alter_table:
+        ddl = mask_literals_and_comments(
+            statement, dialect, mysql_no_backslash_escapes=mysql_no_backslash_escapes, preserve_identifiers=True,
+        ).strip().lower()
     if create_table:
         after_table = normalized[create_table.end():].lstrip()
         if not re.match(r"^if\s+not\s+exists\b", after_table):
@@ -459,11 +521,13 @@ def inspect_statement(file: str, line: int, statement: str, dialect: str, *, mys
             add(findings, file, line, split_rule_id(dialect, "G.TAB.16"), dialect, "Every table must define a primary key", statement)
     if re.match(r"^drop\s+table\b", normalized) and not re.match(r"^drop\s+table\s+if\s+exists\b", normalized):
         add(findings, file, line, split_rule_id(dialect, "G.UPG.11"), dialect, "DROP TABLE must use IF EXISTS", statement)
-    if re.match(r"^alter\s+table\b", normalized):
-        ddl = mask_literals_and_comments(statement, dialect, mysql_no_backslash_escapes=mysql_no_backslash_escapes, preserve_identifiers=True).strip().lower()
+    if alter_table:
         if drops_column(ddl, dialect):
             add(findings, file, line, split_rule_id(dialect, "G.UPG.03"), dialect, "Dropping columns is prohibited", statement)
-        if re.search(r"\b(?:modify|change)\s+(?:column\s+)?|\balter\s+column\s+[a-z0-9_\"]+\s+(?:set\s+data\s+)?type\b", normalized):
+        mysql_type_change = dialect == "mysql" and re.search(r"\b(?:modify|change)\s+(?:column\s+)?", normalized)
+        if mysql_type_change or re.search(
+            r'\balter\s+column\s+[a-z0-9_"]+\s+(?:set\s+data\s+)?type\b', normalized,
+        ):
             add(findings, file, line, f"{'MYSQL' if dialect == 'mysql' else 'POSTGRESQL'}-UPG-005", dialect, "Direct column type modification requires a compatible expand-contract plan", statement)
         if re.search(r"\balter\s+column\s+[a-z0-9_\"]+\s+set\s+not\s+null\b", normalized):
             add(findings, file, line, f"{'MYSQL' if dialect == 'mysql' else 'POSTGRESQL'}-UPG-008", dialect, "Changing an existing column to NOT NULL is prohibited", statement)
@@ -483,7 +547,6 @@ def inspect_statement(file: str, line: int, statement: str, dialect: str, *, mys
         add(findings, file, line, split_rule_id(dialect, "G.TXN.01"), dialect, "Explicit transaction isolation levels are prohibited", statement)
 
     if create_table:
-        ddl = mask_literals_and_comments(statement, dialect, mysql_no_backslash_escapes=mysql_no_backslash_escapes, preserve_identifiers=True).strip().lower()
         primary_keys = primary_key_definitions(ddl)
         if dialect == "mysql":
             if any(re.search(r"\bauto_increment\b", definition) for definition in primary_keys):
@@ -507,8 +570,11 @@ def inspect_statement(file: str, line: int, statement: str, dialect: str, *, mys
         charsets = re.findall(r"\b(?:default\s+)?(?:character\s+set|charset)\s*=?\s*([a-z0-9_]+)", normalized)
         if any(charset != "utf8mb4" for charset in charsets):
             add(findings, file, line, "MYSQL-ENC-001", dialect, "Verify the non-utf8mb4 character set and any approved exception", statement, review=True)
-    elif re.search(r"\bengine\s*=|\b(?:default\s+)?charset\s*=|\bauto_increment\b|`", normalized):
-        add(findings, file, line, "POSTGRESQL-TAB-001", dialect, "MySQL-only table syntax is invalid in PostgreSQL", statement)
+    elif "`" in normalized or has_mysql_table_options(ddl):
+        add(
+            findings, file, line, "POSTGRESQL-TAB-001", dialect,
+            "Review MySQL-specific table syntax for PostgreSQL compatibility", statement, review=True,
+        )
     return findings
 
 

@@ -38,27 +38,29 @@
       "source": [
         "G.TAB.01"
       ],
-      "name": "PostgreSQL 不使用 MySQL ENGINE 子句",
-      "level": "mandatory",
-      "gate": "block",
+      "name": "PostgreSQL 检视疑似混入的 MySQL 表语法",
+      "level": "recommendation",
+      "gate": "warn",
       "scope": [
         "table",
-        "ddl"
+        "ddl",
+        "identifier"
       ],
       "dialects": [
         "postgresql"
       ],
-      "condition": "普通表使用 PostgreSQL 原生 table access method；DDL 禁止 ENGINE=InnoDB/MyISAM。自定义 access method 或 storage parameter 必须评审。",
+      "condition": "在 PostgreSQL 检视中，发现 MySQL 表选项、列自增属性、MODIFY/CHANGE 子句或反引号标识符时提示核对真实目标方言和迁移写法。普通同名列、类型和表达式按 PostgreSQL 语义检视。该提示不阻断自动门禁。",
       "check": {
-        "kind": "static",
-        "detector": "PostgreSQL 模式下发现 ENGINE= 或 MySQL 表选项即命中。"
+        "kind": "hybrid",
+        "detector": "按 DDL 位置筛查 ENGINE、字符集、AUTO_INCREMENT 和 MODIFY/CHANGE 子句，识别 SQL 中的反引号标识符，并由人工核实适用方言。",
+        "review_gate": "warn"
       },
       "examples": {
-        "positive": "create table if not exists t_order (...);",
-        "negative": "create table t_order (...) engine=InnoDB;"
+        "positive": "create table if not exists t_order (id uuid primary key, auto_increment boolean, engine text);",
+        "negative": "create table if not exists t_order (id uuid primary key) engine=InnoDB;"
       },
-      "remediation": "移除 MySQL 表选项；特殊存储参数按 PostgreSQL 能力评审。",
-      "confirmation_required": true
+      "remediation": "确认目标为 PostgreSQL 后，按 PostgreSQL 能力改写表选项、标识符和列定义，并使用目标数据库验证语法。",
+      "confirmation_required": false
     },
     {
       "id": "POSTGRESQL-TIME-001",

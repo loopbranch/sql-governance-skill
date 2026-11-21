@@ -31,7 +31,7 @@ metadata:
 1. 读取 [rules/catalog.json](rules/catalog.json)，严格按 `load_order` 加载：
    - MySQL：`rules/common.json` + `rules/mysql.json`；
    - PostgreSQL：`rules/common.json` + `rules/postgresql.json`。
-2. 禁止对 PostgreSQL 应用 MySQL 的 `utf8mb4`、InnoDB、前缀索引或 `BINARY(16)` 要求；禁止对 MySQL 应用 PostgreSQL 的 `uuid`、`CONCURRENTLY`、GIN/GiST、父子分区索引要求。
+2. 禁止对 PostgreSQL 应用 MySQL 的 `utf8mb4`、InnoDB、前缀索引或 `BINARY(16)` 要求；禁止对 MySQL 应用 PostgreSQL 的 `uuid`、`CONCURRENTLY`、GIN/GiST、父子分区索引要求。PostgreSQL 检视发现疑似混入的 MySQL 表语法时，按 `POSTGRESQL-TAB-001` 提示 Warn，并复核目标数据库兼容性。
 3. 需要解释层级、自动化能力或例外时，读取 [references/severity-model.md](references/severity-model.md)。
 4. 规则涉及语法、类型、标识符、注释、DML/DDL、事务、锁、索引或分区事实时，读取 [references/dialect-spec-sources.md](references/dialect-spec-sources.md)，并以其中对应版本的官方文档为准；项目策略可以更严格，但不得把“项目禁止”写成“数据库不支持”。
 5. 需要判断某个源条款为何保留 common 或拆分时，读取 [references/dialect-isolation-audit.md](references/dialect-isolation-audit.md)。不得把已拆分条款的另一方言规则作为补充规则加载。
