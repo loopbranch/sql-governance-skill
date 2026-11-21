@@ -720,6 +720,2502 @@
       },
       "remediation": "按 MySQL 禁止直接 MODIFY 字段为 NOT NULL 整改；规范依据见 references/dialect-spec-sources.md。",
       "confirmation_required": true
+    },
+    {
+      "id": "MYSQL-GDBS-003",
+      "source": [
+        "G.DBS.03"
+      ],
+      "name": "MySQL 5.7：存储个人数据的表需要进行字段级权限保护",
+      "level": "mandatory",
+      "gate": "block",
+      "scope": [
+        "dbs"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：存储个人数据的表需要进行字段级权限保护 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "manual",
+        "detector": "核对设计、运行数据、审批或运维证据。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“存储个人数据的表需要进行字段级权限保护”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-GDBS-006",
+      "source": [
+        "G.DBS.06"
+      ],
+      "name": "MySQL 5.7：避免应用运行期频繁创建和删除表",
+      "level": "recommendation",
+      "gate": "warn",
+      "scope": [
+        "dbs"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：避免应用运行期频繁创建和删除表。2.2表设计 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "manual",
+        "detector": "核对设计、运行数据、审批或运维证据。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“避免应用运行期频繁创建和删除表”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-GTAB-003",
+      "source": [
+        "G.TAB.03"
+      ],
+      "name": "MySQL 5.7：避免在表中存储大对象",
+      "level": "recommendation",
+      "gate": "warn",
+      "scope": [
+        "tab"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：避免在表中存储大对象。documentcontent的content/state例外，其他字段超过2KB，需要评审是否必要。 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“避免在表中存储大对象”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": true
+    },
+    {
+      "id": "MYSQL-GTAB-004",
+      "source": [
+        "G.TAB.04"
+      ],
+      "name": "MySQL 5.7：避免使用外键（禁止）",
+      "level": "prohibition",
+      "gate": "block",
+      "scope": [
+        "tab"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：避免使用外键（禁止） 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "static",
+        "detector": "由 sql_guard.py 使用 MySQL 5.7 lexer/grammar 高置信判定。"
+      },
+      "examples": {
+        "positive": "DDL 不声明 FOREIGN KEY，由应用校验关联",
+        "negative": "constraint fk_order_user foreign key (user_id) references t_user(id)"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": true
+    },
+    {
+      "id": "MYSQL-GTAB-006",
+      "source": [
+        "G.TAB.06"
+      ],
+      "name": "MySQL 5.7：表数据需要有归档或清理策略",
+      "level": "prohibition",
+      "gate": "block",
+      "scope": [
+        "tab"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：表数据需要有归档或清理策略。表中的数据不能无止境的增长。有明显时间特征的数据，可以通过分区清理。 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“表数据需要有归档或清理策略”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": true
+    },
+    {
+      "id": "MYSQL-GTAB-007",
+      "source": [
+        "G.TAB.07"
+      ],
+      "name": "MySQL 5.7：禁止业务代码在运行期不断的删建表，特殊业务动态模型时序表架构评审除外",
+      "level": "prohibition",
+      "gate": "block",
+      "scope": [
+        "tab"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：禁止业务代码在运行期不断的删建表，特殊业务动态模型时序表架构评审除外 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“禁止业务代码在运行期不断的删建表，特殊业务动态模型时序表架构评审除外”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": true
+    },
+    {
+      "id": "MYSQL-GTAB-008",
+      "source": [
+        "G.TAB.08"
+      ],
+      "name": "MySQL 5.7：在满足业务精度的情况下，使用高效的数值类数据类型",
+      "level": "recommendation",
+      "gate": "warn",
+      "scope": [
+        "tab"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：在满足业务精度的情况下，使用高效的数值类数据类型。避免使用NUMERIC/DECIMAL 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“在满足业务精度的情况下，使用高效的数值类数据类型”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": true
+    },
+    {
+      "id": "MYSQL-GTAB-009",
+      "source": [
+        "G.TAB.09"
+      ],
+      "name": "MySQL 5.7：存储货币金额和其它要求精确计算的数值时禁止使用浮点数据类型",
+      "level": "prohibition",
+      "gate": "block",
+      "scope": [
+        "tab"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：存储货币金额和其它要求精确计算的数值时禁止使用浮点数据类型 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“存储货币金额和其它要求精确计算的数值时禁止使用浮点数据类型”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": true
+    },
+    {
+      "id": "MYSQL-GTAB-010",
+      "source": [
+        "G.TAB.10"
+      ],
+      "name": "MySQL 5.7：不允许用字符类型字段存储数值、时间或日期类型的数据",
+      "level": "prohibition",
+      "gate": "block",
+      "scope": [
+        "tab"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：不允许用字符类型字段存储数值、时间或日期类型的数据 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“不允许用字符类型字段存储数值、时间或日期类型的数据”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": true
+    },
+    {
+      "id": "MYSQL-GTAB-011",
+      "source": [
+        "G.TAB.11"
+      ],
+      "name": "MySQL 5.7：不同表上相同业务字段的字段名称、数据类型保持一致",
+      "level": "mandatory",
+      "gate": "block",
+      "scope": [
+        "tab"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：不同表上相同业务字段的字段名称、数据类型保持一致。常见的字段 > 只有一个时区， 可能用于分区 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“不同表上相同业务字段的字段名称、数据类型保持一致”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": true
+    },
+    {
+      "id": "MYSQL-GTAB-012",
+      "source": [
+        "G.TAB.12"
+      ],
+      "name": "MySQL 5.7：不同表上相同业务字段的字段名称、数据类型保持一致",
+      "level": "mandatory",
+      "gate": "block",
+      "scope": [
+        "tab"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：不同表上相同业务字段的字段名称、数据类型保持一致。常见的字段 > 只有一个时区， 可能用于分区 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“不同表上相同业务字段的字段名称、数据类型保持一致”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": true
+    },
+    {
+      "id": "MYSQL-GTAB-014",
+      "source": [
+        "G.TAB.14"
+      ],
+      "name": "MySQL 5.7：定长字符数据使用CHAR类型，变长字符数据使用VARCHAR类型",
+      "level": "mandatory",
+      "gate": "block",
+      "scope": [
+        "tab"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：定长字符数据使用CHAR类型，变长字符数据使用VARCHAR类型 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“定长字符数据使用CHAR类型，变长字符数据使用VARCHAR类型”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": true
+    },
+    {
+      "id": "MYSQL-GTAB-016",
+      "source": [
+        "G.TAB.16"
+      ],
+      "name": "MySQL 5.7：所有表都必须有主键",
+      "level": "mandatory",
+      "gate": "block",
+      "scope": [
+        "tab"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：所有表都必须有主键。可以是单独字段、联合字段。 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "static",
+        "detector": "由 sql_guard.py 使用 MySQL 5.7 lexer/grammar 高置信判定。"
+      },
+      "examples": {
+        "positive": "create table t_user (id binary(16) primary key)",
+        "negative": "create table t_user (name varchar(64))"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": true
+    },
+    {
+      "id": "MYSQL-GTAB-017",
+      "source": [
+        "G.TAB.17"
+      ],
+      "name": "MySQL 5.7：对于明确不存在NULL值的字段加上NOT NULL约束",
+      "level": "mandatory",
+      "gate": "block",
+      "scope": [
+        "tab"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：对于明确不存在NULL值的字段加上NOT NULL约束 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“对于明确不存在NULL值的字段加上NOT NULL约束”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": true
+    },
+    {
+      "id": "MYSQL-GIDX-001",
+      "source": [
+        "G.IDX.01"
+      ],
+      "name": "MySQL 5.7：依照常用的查询条件和数据分布来决定索引的创建。",
+      "level": "mandatory",
+      "gate": "block",
+      "scope": [
+        "idx"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：依照常用的查询条件和数据分布来决定索引的创建。。超过5k 条记录的表，访问必须命中索引。 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“依照常用的查询条件和数据分布来决定索引的创建。”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": true
+    },
+    {
+      "id": "MYSQL-GIDX-002",
+      "source": [
+        "G.IDX.02"
+      ],
+      "name": "MySQL 5.7：索引具备唯一性时，需定义成唯一索引。",
+      "level": "mandatory",
+      "gate": "block",
+      "scope": [
+        "idx"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：索引具备唯一性时，需定义成唯一索引。。优化程序针对唯一索引会优化。 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“索引具备唯一性时，需定义成唯一索引。”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": true
+    },
+    {
+      "id": "MYSQL-GIDX-003",
+      "source": [
+        "G.IDX.03"
+      ],
+      "name": "MySQL 5.7：不要在选择性较低的字段上建立索引，优先在高选择度的列上创建索引。",
+      "level": "recommendation",
+      "gate": "warn",
+      "scope": [
+        "idx"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：不要在选择性较低的字段上建立索引，优先在高选择度的列上创建索引。。比如status、docType等只有少量的几个取值，不建议建索引。 可以考虑和其他字段建联合索引 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“不要在选择性较低的字段上建立索引，优先在高选择度的列上创建索引。”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": true
+    },
+    {
+      "id": "MYSQL-GIDX-004",
+      "source": [
+        "G.IDX.04"
+      ],
+      "name": "MySQL 5.7：创建复合索引时，对使用频率高且选择度高的字段放在复合索引的第一个位置",
+      "level": "mandatory",
+      "gate": "block",
+      "scope": [
+        "idx"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：创建复合索引时，对使用频率高且选择度高的字段放在复合索引的第一个位置。【正例】：INDEX indexentityIdentityType(entityid ASC, entitytype ASC) entityid 选择度高，entitytype只有2个取值、选择度低。 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“创建复合索引时，对使用频率高且选择度高的字段放在复合索引的第一个位置”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": true
+    },
+    {
+      "id": "MYSQL-GIDX-005",
+      "source": [
+        "G.IDX.05"
+      ],
+      "name": "MySQL 5.7：对排序字段建索引",
+      "level": "recommendation",
+      "gate": "warn",
+      "scope": [
+        "idx"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：对排序字段建索引。如果order by后面的字段上建有索引，建议使用索引而避免排序。 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“对排序字段建索引”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": true
+    },
+    {
+      "id": "MYSQL-GIDX-008",
+      "source": [
+        "G.IDX.08"
+      ],
+      "name": "MySQL 5.7：禁止创建重复或冗余索引",
+      "level": "prohibition",
+      "gate": "block",
+      "scope": [
+        "idx"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：禁止创建重复或冗余索引。【反例】document表 KEY idxupdatedAt (updatedAt), KEY idxdocumentdomainidupdatedat (domainId,updatedAt) 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“禁止创建重复或冗余索引”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": true
+    },
+    {
+      "id": "MYSQL-GIDX-009",
+      "source": [
+        "G.IDX.09"
+      ],
+      "name": "MySQL 5.7：单张表中索引数量不超过5个",
+      "level": "recommendation",
+      "gate": "warn",
+      "scope": [
+        "idx"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：单张表中索引数量不超过5个。超过的要重点评审。 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“单张表中索引数量不超过5个”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": true
+    },
+    {
+      "id": "MYSQL-GIDX-010",
+      "source": [
+        "G.IDX.10"
+      ],
+      "name": "MySQL 5.7：单个索引中的字段数不超过5个",
+      "level": "recommendation",
+      "gate": "warn",
+      "scope": [
+        "idx"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：单个索引中的字段数不超过5个 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“单个索引中的字段数不超过5个”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": true
+    },
+    {
+      "id": "MYSQL-GFMT-001",
+      "source": [
+        "G.FMT.01"
+      ],
+      "name": "MySQL 5.7：create、begin、end独立成行，顶格书写不缩进，但是作为程序块嵌套在程序中时仍然需要缩进4个空格",
+      "level": "mandatory",
+      "gate": "block",
+      "scope": [
+        "fmt"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：create、begin、end独立成行，顶格书写不缩进，但是作为程序块嵌套在程序中时仍然需要缩进4个空格 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“create、begin、end独立成行，顶格书写不缩进，但是作为程序块嵌套在程序中时仍然需要缩进4个空格”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-GFMT-004",
+      "source": [
+        "G.FMT.04"
+      ],
+      "name": "MySQL 5.7：存储过程、函数中的in 、out、in out参数应按其类别分开书写，不允许交叉",
+      "level": "prohibition",
+      "gate": "block",
+      "scope": [
+        "fmt"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：存储过程、函数中的in 、out、in out参数应按其类别分开书写，不允许交叉 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“存储过程、函数中的in 、out、in out参数应按其类别分开书写，不允许交叉”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-GFMT-005",
+      "source": [
+        "G.FMT.05"
+      ],
+      "name": "MySQL 5.7：所有数据库关键字使用小写字母",
+      "level": "mandatory",
+      "gate": "block",
+      "scope": [
+        "fmt"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：所有数据库关键字使用小写字母。当前大写、小写都有， 统一即可。 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“所有数据库关键字使用小写字母”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-GFMT-006",
+      "source": [
+        "G.FMT.06"
+      ],
+      "name": "MySQL 5.7：SQL语句中关键字右对齐",
+      "level": "mandatory",
+      "gate": "block",
+      "scope": [
+        "fmt"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：SQL语句中关键字右对齐 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“SQL语句中关键字右对齐”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-GFMT-008",
+      "source": [
+        "G.FMT.08"
+      ],
+      "name": "MySQL 5.7：避免将SQL语句写到同一行，再短的语句也要在关键字和谓词处换行 （暂不实施）",
+      "level": "reference",
+      "gate": "info",
+      "scope": [
+        "fmt"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：避免将SQL语句写到同一行，再短的语句也要在关键字和谓词处换行 （暂不实施） 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“避免将SQL语句写到同一行，再短的语句也要在关键字和谓词处换行 （暂不实施）”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-GFMT-009",
+      "source": [
+        "G.FMT.09"
+      ],
+      "name": "MySQL 5.7：不同类型的操作符混合使用时，建议使用括号进行隔离，以使代码更加清晰",
+      "level": "recommendation",
+      "gate": "warn",
+      "scope": [
+        "fmt"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：不同类型的操作符混合使用时，建议使用括号进行隔离，以使代码更加清晰 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“不同类型的操作符混合使用时，建议使用括号进行隔离，以使代码更加清晰”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-GFMT-010",
+      "source": [
+        "G.FMT.10"
+      ],
+      "name": "MySQL 5.7：减少控制语句的检查次数，如在(IF…ELSE)控制语句中，对最常用符合的条件，尽量往前被检查到",
+      "level": "recommendation",
+      "gate": "warn",
+      "scope": [
+        "fmt"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：减少控制语句的检查次数，如在(IF…ELSE)控制语句中，对最常用符合的条件，尽量往前被检查到 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“减少控制语句的检查次数，如在(IF…ELSE)控制语句中，对最常用符合的条件，尽量往前被检查到”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-GFMT-011",
+      "source": [
+        "G.FMT.11"
+      ],
+      "name": "MySQL 5.7：存储过程、函数的变量定义部分，类型关键字要左对齐；变量后的注释也要左对齐",
+      "level": "mandatory",
+      "gate": "block",
+      "scope": [
+        "fmt"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：存储过程、函数的变量定义部分，类型关键字要左对齐；变量后的注释也要左对齐 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“存储过程、函数的变量定义部分，类型关键字要左对齐；变量后的注释也要左对齐”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-GFMT-013",
+      "source": [
+        "G.FMT.13"
+      ],
+      "name": "MySQL 5.7：变量声明集中定义，单功能模块变量放在一起",
+      "level": "mandatory",
+      "gate": "block",
+      "scope": [
+        "fmt"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：变量声明集中定义，单功能模块变量放在一起。3.2命名规范 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“变量声明集中定义，单功能模块变量放在一起”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-GNAM-002",
+      "source": [
+        "G.NAM.02"
+      ],
+      "name": "MySQL 5.7：对象名称只能包含小写字母、数字和下划线，单词之间采用下划线分割",
+      "level": "mandatory",
+      "gate": "block",
+      "scope": [
+        "nam"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：对象名称只能包含小写字母、数字和下划线，单词之间采用下划线分割。对象名称：库名、表空间名、表名、字段名、索引名、视图名、存储过程名、函数名等 蛇形：包含小写字母、数字和下划线，单词之间采用下划线分割。 旧版本表是驼峰命名，如果新增字段、遵循旧版本的驼峰格式。 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“对象名称只能包含小写字母、数字和下划线，单词之间采用下划线分割”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-GNAM-007",
+      "source": [
+        "G.NAM.07"
+      ],
+      "name": "MySQL 5.7：表别名要简短，通常使用小写的字母作为别名，长度不超过5个字符",
+      "level": "mandatory",
+      "gate": "block",
+      "scope": [
+        "nam"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：表别名要简短，通常使用小写的字母作为别名，长度不超过5个字符 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“表别名要简短，通常使用小写的字母作为别名，长度不超过5个字符”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-GNAM-008",
+      "source": [
+        "G.NAM.08"
+      ],
+      "name": "MySQL 5.7：不同作用域变量名称不能重名",
+      "level": "prohibition",
+      "gate": "block",
+      "scope": [
+        "nam"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：不同作用域变量名称不能重名 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“不同作用域变量名称不能重名”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-GNAM-009",
+      "source": [
+        "G.NAM.09"
+      ],
+      "name": "MySQL 5.7：对象命名遵循前缀规范",
+      "level": "mandatory",
+      "gate": "block",
+      "scope": [
+        "nam"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：对象命名遵循前缀规范。3.3注释规范 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“对象命名遵循前缀规范”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-GCMT-003",
+      "source": [
+        "G.CMT.03"
+      ],
+      "name": "MySQL 5.7：对语句、程序块、分支结构的注释应放在其上方，对变量、字段、接口参数的注释应放在其右面，避免将注释放在下面",
+      "level": "recommendation",
+      "gate": "warn",
+      "scope": [
+        "cmt"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：对语句、程序块、分支结构的注释应放在其上方，对变量、字段、接口参数的注释应放在其右面，避免将注释放在下面 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“对语句、程序块、分支结构的注释应放在其上方，对变量、字段、接口参数的注释应放在其右面，避免将注释放在下面”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-GCMT-006",
+      "source": [
+        "G.CMT.06"
+      ],
+      "name": "MySQL 5.7：对函数的参数进行详细描述，并放在方法前面",
+      "level": "mandatory",
+      "gate": "block",
+      "scope": [
+        "cmt"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：对函数的参数进行详细描述，并放在方法前面 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“对函数的参数进行详细描述，并放在方法前面”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-GCMT-007",
+      "source": [
+        "G.CMT.07"
+      ],
+      "name": "MySQL 5.7：避免在一行代码或表达式的中间插入注释",
+      "level": "recommendation",
+      "gate": "warn",
+      "scope": [
+        "cmt"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：避免在一行代码或表达式的中间插入注释 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“避免在一行代码或表达式的中间插入注释”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-GSEL-002",
+      "source": [
+        "G.SEL.02"
+      ],
+      "name": "MySQL 5.7：涉及到多表连接的SQL语句，要为每个表指定别名",
+      "level": "mandatory",
+      "gate": "block",
+      "scope": [
+        "sel"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：涉及到多表连接的SQL语句，要为每个表指定别名 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“涉及到多表连接的SQL语句，要为每个表指定别名”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-GSEL-003",
+      "source": [
+        "G.SEL.03"
+      ],
+      "name": "MySQL 5.7：禁止对大文本或超长字符串直接排序去重",
+      "level": "prohibition",
+      "gate": "block",
+      "scope": [
+        "sel"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：禁止对大文本或超长字符串直接执行排序、去重等高成本操作；阈值和替代索引能力按目标数据库评估。 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“禁止对大文本或超长字符串直接排序去重”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-GSEL-004",
+      "source": [
+        "G.SEL.04"
+      ],
+      "name": "MySQL 5.7：在union的两个结果集不需要去重的情况下，使用union all来代替union",
+      "level": "mandatory",
+      "gate": "block",
+      "scope": [
+        "sel"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：在union的两个结果集不需要去重的情况下，使用union all来代替union 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“在union的两个结果集不需要去重的情况下，使用union all来代替union”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-GSEL-006",
+      "source": [
+        "G.SEL.06"
+      ],
+      "name": "MySQL 5.7：禁止在FROM子句出现用不到表的",
+      "level": "prohibition",
+      "gate": "block",
+      "scope": [
+        "sel"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：禁止在FROM子句出现用不到表的 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“禁止在FROM子句出现用不到表的”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-GSEL-007",
+      "source": [
+        "G.SEL.07"
+      ],
+      "name": "MySQL 5.7：结果集不依赖结果列的顺序时，不要使用order by",
+      "level": "recommendation",
+      "gate": "warn",
+      "scope": [
+        "sel"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：结果集不依赖结果列的顺序时，不要使用order by 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“结果集不依赖结果列的顺序时，不要使用order by”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-GSEL-009",
+      "source": [
+        "G.SEL.09"
+      ],
+      "name": "MySQL 5.7：使用inner join代替join",
+      "level": "mandatory",
+      "gate": "block",
+      "scope": [
+        "sel"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：使用inner join代替join 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“使用inner join代替join”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-GSEL-010",
+      "source": [
+        "G.SEL.10"
+      ],
+      "name": "MySQL 5.7：在客户端需要判断表中是否有数据时，建议使用limit",
+      "level": "recommendation",
+      "gate": "warn",
+      "scope": [
+        "sel"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：在客户端需要判断表中是否有数据时，建议使用limit 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“在客户端需要判断表中是否有数据时，建议使用limit”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-GSEL-011",
+      "source": [
+        "G.SEL.11"
+      ],
+      "name": "MySQL 5.7：大表采用分批次查询",
+      "level": "mandatory",
+      "gate": "block",
+      "scope": [
+        "sel"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：大表采用分批次查询 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“大表采用分批次查询”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-GSEL-012",
+      "source": [
+        "G.SEL.12"
+      ],
+      "name": "MySQL 5.7：禁止使用 select *",
+      "level": "prohibition",
+      "gate": "block",
+      "scope": [
+        "sel"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：禁止使用 select *。【例外】表结构稳定，客户端确实需要全部字段且已记录评审依据；表结构变更后需要自适应时可按例外流程使用。 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "static",
+        "detector": "由 sql_guard.py 使用 MySQL 5.7 lexer/grammar 高置信判定。"
+      },
+      "examples": {
+        "positive": "select id, status from t_order",
+        "negative": "select * from t_order"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-GSEL-013",
+      "source": [
+        "G.SEL.13"
+      ],
+      "name": "MySQL 5.7：包含了order by、group by、distinct的查询，where条件过滤的结果集不能过大",
+      "level": "prohibition",
+      "gate": "block",
+      "scope": [
+        "sel"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：包含了order by、group by、distinct的查询，where条件过滤的结果集不能过大 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“包含了order by、group by、distinct的查询，where条件过滤的结果集不能过大”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-GSEL-014",
+      "source": [
+        "G.SEL.14"
+      ],
+      "name": "MySQL 5.7：查询条件相同时，同一个表的数据要一次提取完毕，不允许分多条语句提取",
+      "level": "prohibition",
+      "gate": "block",
+      "scope": [
+        "sel"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：查询条件相同时，同一个表的数据要一次提取完毕，不允许分多条语句提取 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“查询条件相同时，同一个表的数据要一次提取完毕，不允许分多条语句提取”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-GSEL-015",
+      "source": [
+        "G.SEL.15"
+      ],
+      "name": "MySQL 5.7：按空值语义选择 count(*) 或 count(列名)",
+      "level": "recommendation",
+      "gate": "warn",
+      "scope": [
+        "sel"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：统计行数使用 count(*)；只有需要忽略 NULL 时才使用 count(列名)。不得以性能理由强制用 count(1) 替代 count(*)。 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“按空值语义选择 count(*) 或 count(列名)”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-GSEL-016",
+      "source": [
+        "G.SEL.16"
+      ],
+      "name": "MySQL 5.7：提前通过谓词对结果集进行访问，减小结果集大小",
+      "level": "mandatory",
+      "gate": "block",
+      "scope": [
+        "sel"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：提前通过谓词对结果集进行访问，减小结果集大小 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“提前通过谓词对结果集进行访问，减小结果集大小”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-GSEL-018",
+      "source": [
+        "G.SEL.18"
+      ],
+      "name": "MySQL 5.7：查询条件时优先使用等值的、正向判断的操作符，避免无法利用索引",
+      "level": "recommendation",
+      "gate": "warn",
+      "scope": [
+        "sel"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：查询条件时优先使用等值的、正向判断的操作符，避免无法利用索引 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“查询条件时优先使用等值的、正向判断的操作符，避免无法利用索引”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-GSEL-019",
+      "source": [
+        "G.SEL.19"
+      ],
+      "name": "MySQL 5.7：where子句中，不建议使用like进行左模糊查找",
+      "level": "recommendation",
+      "gate": "warn",
+      "scope": [
+        "sel"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：where子句中，不建议使用like进行左模糊查找 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“where子句中，不建议使用like进行左模糊查找”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-GSEL-020",
+      "source": [
+        "G.SEL.20"
+      ],
+      "name": "MySQL 5.7：建议join表的数量不超过4个",
+      "level": "recommendation",
+      "gate": "warn",
+      "scope": [
+        "sel"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：建议join表的数量不超过4个 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“建议join表的数量不超过4个”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-GSEL-021",
+      "source": [
+        "G.SEL.21"
+      ],
+      "name": "MySQL 5.7：where条件的判断中，与空比较采用is",
+      "level": "mandatory",
+      "gate": "block",
+      "scope": [
+        "sel"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：where条件的判断中，与空比较采用is 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“where条件的判断中，与空比较采用is”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-GSEL-022",
+      "source": [
+        "G.SEL.22"
+      ],
+      "name": "MySQL 5.7：查询分区表时，在where条件中尽可能用到分区字段",
+      "level": "mandatory",
+      "gate": "block",
+      "scope": [
+        "sel"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：查询分区表时，在where条件中尽可能用到分区字段 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“查询分区表时，在where条件中尽可能用到分区字段”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-GSEL-023",
+      "source": [
+        "G.SEL.23"
+      ],
+      "name": "MySQL 5.7：针对关联条件中的字段值可能为null时，不使用not",
+      "level": "mandatory",
+      "gate": "block",
+      "scope": [
+        "sel"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：针对关联条件中的字段值可能为null时，不使用not 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“针对关联条件中的字段值可能为null时，不使用not”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-GSEL-024",
+      "source": [
+        "G.SEL.24"
+      ],
+      "name": "MySQL 5.7：避免使用候选字集中的常量数量非常大的in、not",
+      "level": "recommendation",
+      "gate": "warn",
+      "scope": [
+        "sel"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：避免使用候选字集中的常量数量非常大的in、not 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“避免使用候选字集中的常量数量非常大的in、not”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-GSEL-025",
+      "source": [
+        "G.SEL.25"
+      ],
+      "name": "MySQL 5.7：禁止针对关联或过滤字段做函数或表达式运算",
+      "level": "prohibition",
+      "gate": "block",
+      "scope": [
+        "sel"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：禁止针对关联或过滤字段做函数或表达式运算 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“禁止针对关联或过滤字段做函数或表达式运算”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-GSEL-026",
+      "source": [
+        "G.SEL.26"
+      ],
+      "name": "MySQL 5.7：禁止字段类型在比较时发生隐式转换或运算操作",
+      "level": "prohibition",
+      "gate": "block",
+      "scope": [
+        "sel"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：禁止字段类型在比较时发生隐式转换或运算操作 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“禁止字段类型在比较时发生隐式转换或运算操作”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-GSEL-027",
+      "source": [
+        "G.SEL.27"
+      ],
+      "name": "MySQL 5.7：减少子查询的使用",
+      "level": "mandatory",
+      "gate": "block",
+      "scope": [
+        "sel"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：减少子查询的使用 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“减少子查询的使用”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-GSEL-028",
+      "source": [
+        "G.SEL.28"
+      ],
+      "name": "MySQL 5.7：查询是否有符合条件的数据时，使用exists，不要使用count(1)>0",
+      "level": "recommendation",
+      "gate": "warn",
+      "scope": [
+        "sel"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：查询是否有符合条件的数据时，使用exists，不要使用count(1)>0 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“查询是否有符合条件的数据时，使用exists，不要使用count(1)>0”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-GSEL-029",
+      "source": [
+        "G.SEL.29"
+      ],
+      "name": "MySQL 5.7：子查询中带group by时，结果集中不需要的记录需要提前在group by中过滤掉",
+      "level": "mandatory",
+      "gate": "block",
+      "scope": [
+        "sel"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：子查询中带group by时，结果集中不需要的记录需要提前在group by中过滤掉 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“子查询中带group by时，结果集中不需要的记录需要提前在group by中过滤掉”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-GSEL-030",
+      "source": [
+        "G.SEL.30"
+      ],
+      "name": "MySQL 5.7：SQL中避免多余的distinct、union、order by、group by操作",
+      "level": "recommendation",
+      "gate": "warn",
+      "scope": [
+        "sel"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：SQL中避免多余的distinct、union、order by、group by操作 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“SQL中避免多余的distinct、union、order by、group by操作”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-GSEL-031",
+      "source": [
+        "G.SEL.31"
+      ],
+      "name": "MySQL 5.7：在order by和group by中，使用列名，不使用列号",
+      "level": "mandatory",
+      "gate": "block",
+      "scope": [
+        "sel"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：在order by和group by中，使用列名，不使用列号 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“在order by和group by中，使用列名，不使用列号”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-GSEL-032",
+      "source": [
+        "G.SEL.32"
+      ],
+      "name": "MySQL 5.7：在group by中，使用别名简化复杂的分组条件",
+      "level": "mandatory",
+      "gate": "block",
+      "scope": [
+        "sel"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：在group by中，使用别名简化复杂的分组条件 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“在group by中，使用别名简化复杂的分组条件”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-GSEL-033",
+      "source": [
+        "G.SEL.33"
+      ],
+      "name": "MySQL 5.7：当分页查询时，可先用过滤条件进行过滤",
+      "level": "mandatory",
+      "gate": "block",
+      "scope": [
+        "sel"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：当分页查询时，可先用过滤条件进行过滤 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“当分页查询时，可先用过滤条件进行过滤”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-GSEL-034",
+      "source": [
+        "G.SEL.34"
+      ],
+      "name": "MySQL 5.7：当分页查询时，为了稳定的分页序，需要增加order by，且order by的单列或多列字段稳定排序",
+      "level": "mandatory",
+      "gate": "block",
+      "scope": [
+        "sel"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：当分页查询时，为了稳定的分页序，需要增加order by，且order by的单列或多列字段稳定排序 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“当分页查询时，为了稳定的分页序，需要增加order by，且order by的单列或多列字段稳定排序”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-GINS-001",
+      "source": [
+        "G.INS.01"
+      ],
+      "name": "MySQL 5.7：使用insert语句时，需要指明插入目标列",
+      "level": "mandatory",
+      "gate": "block",
+      "scope": [
+        "ins"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：使用insert语句时，需要指明插入目标列 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "static",
+        "detector": "由 sql_guard.py 使用 MySQL 5.7 lexer/grammar 高置信判定。"
+      },
+      "examples": {
+        "positive": "insert into t_order (id,status) values (?,?)",
+        "negative": "insert into t_order values (?,?)"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-GINS-002",
+      "source": [
+        "G.INS.02"
+      ],
+      "name": "MySQL 5.7：禁止使用数据类型隐式转换",
+      "level": "prohibition",
+      "gate": "block",
+      "scope": [
+        "ins"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：禁止使用数据类型隐式转换 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“禁止使用数据类型隐式转换”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-GINS-003",
+      "source": [
+        "G.INS.03"
+      ],
+      "name": "MySQL 5.7：批量插入场景，使用insert into tablename values(…), (…)的方式替换多条insert",
+      "level": "mandatory",
+      "gate": "block",
+      "scope": [
+        "ins"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：批量插入场景，使用insert into tablename values(…), (…)的方式替换多条insert。4.3delete 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“批量插入场景，使用insert into tablename values(…), (…)的方式替换多条insert”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-GDEL-001",
+      "source": [
+        "G.DEL.01"
+      ],
+      "name": "MySQL 5.7：delete语句必须带where条件，where条件应优先结合主键或索引",
+      "level": "mandatory",
+      "gate": "block",
+      "scope": [
+        "del"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：DELETE 语句必须带能够限定目标行的 WHERE 条件。是否命中主键或索引属于执行计划评审建议，不改变缺少 WHERE 时的 Block。 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "static",
+        "detector": "由 sql_guard.py 使用 MySQL 5.7 lexer/grammar 高置信判定。"
+      },
+      "examples": {
+        "positive": "delete from t_order where id=?",
+        "negative": "delete from t_order"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-GUPD-001",
+      "source": [
+        "G.UPD.01"
+      ],
+      "name": "MySQL 5.7：update语句中必须有where子句",
+      "level": "mandatory",
+      "gate": "block",
+      "scope": [
+        "upd"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：update语句中必须有where子句 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "static",
+        "detector": "由 sql_guard.py 使用 MySQL 5.7 lexer/grammar 高置信判定。"
+      },
+      "examples": {
+        "positive": "update t_order set status=? where id=?",
+        "negative": "update t_order set status=?"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-GUPD-004",
+      "source": [
+        "G.UPD.04"
+      ],
+      "name": "MySQL 5.7：分片场景update语句where条件需要指定分布列作为等值条件",
+      "level": "mandatory",
+      "gate": "block",
+      "scope": [
+        "upd"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：分片场景update语句where条件需要指定分布列作为等值条件 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“分片场景update语句where条件需要指定分布列作为等值条件”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-GUPD-007",
+      "source": [
+        "G.UPD.07"
+      ],
+      "name": "MySQL 5.7：update语句where条件应该尽量使用主键/索引字段",
+      "level": "recommendation",
+      "gate": "warn",
+      "scope": [
+        "upd"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：update语句where条件应该尽量使用主键/索引字段。4.5存储过程和函数（暂不支持） 4.6触发器 （暂不支持） 5 客户端编程规范 5.1数据访问规范 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“update语句where条件应该尽量使用主键/索引字段”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-GCLI-001",
+      "source": [
+        "G.CLI.01"
+      ],
+      "name": "MySQL 5.7：使用连接池",
+      "level": "mandatory",
+      "gate": "block",
+      "scope": [
+        "cli"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：使用连接池 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "manual",
+        "detector": "核对设计、运行数据、审批或运维证据。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“使用连接池”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-GCLI-002",
+      "source": [
+        "G.CLI.02"
+      ],
+      "name": "MySQL 5.7：连接池中的连接需要设置空闲超时断连",
+      "level": "mandatory",
+      "gate": "block",
+      "scope": [
+        "cli"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：连接池中的连接需要设置空闲超时断连 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "manual",
+        "detector": "核对设计、运行数据、审批或运维证据。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“连接池中的连接需要设置空闲超时断连”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-GCLI-003",
+      "source": [
+        "G.CLI.03"
+      ],
+      "name": "MySQL 5.7：针对同一条SQL需要多次执行但参数不同，必须使用语句prepare的方式",
+      "level": "mandatory",
+      "gate": "block",
+      "scope": [
+        "cli"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：针对同一条SQL需要多次执行但参数不同，必须使用语句prepare的方式 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "manual",
+        "detector": "核对设计、运行数据、审批或运维证据。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“针对同一条SQL需要多次执行但参数不同，必须使用语句prepare的方式”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-GCLI-004",
+      "source": [
+        "G.CLI.04"
+      ],
+      "name": "MySQL 5.7：客户端的与数据库访问相关的资源对象，需在使用后进行及时close，且保证正确的释放顺序，来释放占用的资源",
+      "level": "mandatory",
+      "gate": "block",
+      "scope": [
+        "cli"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：客户端的与数据库访问相关的资源对象，需在使用后进行及时close，且保证正确的释放顺序，来释放占用的资源 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "manual",
+        "detector": "核对设计、运行数据、审批或运维证据。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“客户端的与数据库访问相关的资源对象，需在使用后进行及时close，且保证正确的释放顺序，来释放占用的资源”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-GCLI-005",
+      "source": [
+        "G.CLI.05"
+      ],
+      "name": "MySQL 5.7：对服务端返回到客户端的结果集访问前需要增加校验的判断",
+      "level": "mandatory",
+      "gate": "block",
+      "scope": [
+        "cli"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：对服务端返回到客户端的结果集访问前需要增加校验的判断。5.2事务和锁规范 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "manual",
+        "detector": "核对设计、运行数据、审批或运维证据。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“对服务端返回到客户端的结果集访问前需要增加校验的判断”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-GTXN-001",
+      "source": [
+        "G.TXN.01"
+      ],
+      "name": "MySQL 5.7：禁止显式指定事务隔离级别",
+      "level": "prohibition",
+      "gate": "block",
+      "scope": [
+        "txn"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：禁止显式指定事务隔离级别 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "static",
+        "detector": "由 sql_guard.py 使用 MySQL 5.7 lexer/grammar 高置信判定。"
+      },
+      "examples": {
+        "positive": "使用实例与连接池批准的默认隔离级别",
+        "negative": "set transaction isolation level serializable"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-GTXN-002",
+      "source": [
+        "G.TXN.02"
+      ],
+      "name": "MySQL 5.7：禁止与事务无关操作放到事务内",
+      "level": "prohibition",
+      "gate": "block",
+      "scope": [
+        "txn"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：禁止与事务无关操作放到事务内 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“禁止与事务无关操作放到事务内”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-GTXN-003",
+      "source": [
+        "G.TXN.03"
+      ],
+      "name": "MySQL 5.7：显式开启的事务必须主动提交或回滚",
+      "level": "mandatory",
+      "gate": "block",
+      "scope": [
+        "txn"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：显式开启的事务必须主动提交或回滚 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“显式开启的事务必须主动提交或回滚”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-GTXN-004",
+      "source": [
+        "G.TXN.04"
+      ],
+      "name": "MySQL 5.7：多表写操作要保证事务完整性",
+      "level": "mandatory",
+      "gate": "block",
+      "scope": [
+        "txn"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：多表写操作要保证事务完整性 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“多表写操作要保证事务完整性”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-GTXN-005",
+      "source": [
+        "G.TXN.05"
+      ],
+      "name": "MySQL 5.7：多个事务进行多表写操作需要保证表的操作顺序，避免死锁",
+      "level": "recommendation",
+      "gate": "warn",
+      "scope": [
+        "txn"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：多个事务进行多表写操作需要保证表的操作顺序，避免死锁 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“多个事务进行多表写操作需要保证表的操作顺序，避免死锁”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-GTXN-006",
+      "source": [
+        "G.TXN.06"
+      ],
+      "name": "MySQL 5.7：禁止使用大事务",
+      "level": "prohibition",
+      "gate": "block",
+      "scope": [
+        "txn"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：禁止使用大事务 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“禁止使用大事务”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-GUPG-001",
+      "source": [
+        "G.UPG.01"
+      ],
+      "name": "MySQL 5.7：表结构变更前需评估对依赖对象的影响并制定变更方案",
+      "level": "mandatory",
+      "gate": "block",
+      "scope": [
+        "upg"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：表结构变更前需评估对依赖对象的影响并制定变更方案 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“表结构变更前需评估对依赖对象的影响并制定变更方案”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": true
+    },
+    {
+      "id": "MYSQL-GUPG-003",
+      "source": [
+        "G.UPG.03"
+      ],
+      "name": "MySQL 5.7：禁止drop表字段",
+      "level": "prohibition",
+      "gate": "block",
+      "scope": [
+        "upg"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：禁止drop表字段 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "static",
+        "detector": "由 sql_guard.py 使用 MySQL 5.7 lexer/grammar 高置信判定。"
+      },
+      "examples": {
+        "positive": "保留旧列并执行扩展-迁移-收缩",
+        "negative": "alter table t_order drop column legacy_code"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": true
+    },
+    {
+      "id": "MYSQL-GUPG-006",
+      "source": [
+        "G.UPG.06"
+      ],
+      "name": "MySQL 5.7：禁止缩短字段长度",
+      "level": "prohibition",
+      "gate": "block",
+      "scope": [
+        "upg"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：禁止缩短字段长度 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“禁止缩短字段长度”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": true
+    },
+    {
+      "id": "MYSQL-GUPG-009",
+      "source": [
+        "G.UPG.09"
+      ],
+      "name": "MySQL 5.7：delete、update重要业务表时，必须先备份数据",
+      "level": "mandatory",
+      "gate": "block",
+      "scope": [
+        "upg"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：delete、update重要业务表时，必须先备份数据 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“delete、update重要业务表时，必须先备份数据”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": true
+    },
+    {
+      "id": "MYSQL-GUPG-010",
+      "source": [
+        "G.UPG.10"
+      ],
+      "name": "MySQL 5.7：create表时必须有if not exist子句",
+      "level": "mandatory",
+      "gate": "block",
+      "scope": [
+        "upg"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：create表时必须有if not exist子句 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "static",
+        "detector": "由 sql_guard.py 使用 MySQL 5.7 lexer/grammar 高置信判定。"
+      },
+      "examples": {
+        "positive": "create table if not exists t_order (id bigint primary key)",
+        "negative": "create table t_order (id bigint primary key)"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": true
+    },
+    {
+      "id": "MYSQL-GUPG-011",
+      "source": [
+        "G.UPG.11"
+      ],
+      "name": "MySQL 5.7：drop表时必须有if exist子句",
+      "level": "mandatory",
+      "gate": "block",
+      "scope": [
+        "upg"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：drop表时必须有if exist子句 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "static",
+        "detector": "由 sql_guard.py 使用 MySQL 5.7 lexer/grammar 高置信判定。"
+      },
+      "examples": {
+        "positive": "drop table if exists t_order",
+        "negative": "drop table t_order"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": true
+    },
+    {
+      "id": "MYSQL-GSEC-001",
+      "source": [
+        "G.SEC.01"
+      ],
+      "name": "MySQL 5.7：存储在数据库的敏感数据必须加密存储",
+      "level": "mandatory",
+      "gate": "block",
+      "scope": [
+        "sec"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：存储在数据库的敏感数据必须加密存储。参考分级指导，L3、L4级数据如电话号码、email、秘钥等需要加密存储 华为云计算个人数据分类分级指导 V2.0 -20241125.pdf 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "manual",
+        "detector": "核对设计、运行数据、审批或运维证据。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“存储在数据库的敏感数据必须加密存储”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-GSEC-002",
+      "source": [
+        "G.SEC.02"
+      ],
+      "name": "MySQL 5.7：客户端连接数据库要使用SSL",
+      "level": "mandatory",
+      "gate": "block",
+      "scope": [
+        "sec"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：客户端连接数据库要使用SSL 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "manual",
+        "detector": "核对设计、运行数据、审批或运维证据。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“客户端连接数据库要使用SSL”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-GSEC-003",
+      "source": [
+        "G.SEC.03"
+      ],
+      "name": "MySQL 5.7：数据库账号密码要定期修改",
+      "level": "mandatory",
+      "gate": "block",
+      "scope": [
+        "sec"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：数据库账号密码要定期修改。8.归档规范 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "manual",
+        "detector": "核对设计、运行数据、审批或运维证据。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“数据库账号密码要定期修改”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-GKOO-006",
+      "source": [
+        "G.KOO.06"
+      ],
+      "name": "MySQL 5.7：禁止删除结构和受保护配置数据",
+      "level": "prohibition",
+      "gate": "block",
+      "scope": [
+        "koo"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 项目治理要求：禁止删除表、字段及项目声明的受保护配置数据。 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "check": {
+        "kind": "manual",
+        "detector": "核对设计、运行数据、审批或运维证据。 必须按 MySQL 5.7 解释。"
+      },
+      "examples": {
+        "positive": "MySQL 5.7 合规证据：SQL/DDL、schema、EXPLAIN 或配置能够证明“禁止删除结构和受保护配置数据”。",
+        "negative": "把 PostgreSQL 的语法、类型或运行结论直接用于 MySQL 5.7，或缺少适用证据。"
+      },
+      "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
     }
   ]
 }

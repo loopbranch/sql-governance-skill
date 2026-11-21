@@ -9,10 +9,13 @@
 - [数据类型](https://www.postgresql.org/docs/16/datatype.html)与 [uuid](https://www.postgresql.org/docs/16/datatype-uuid.html)：类型、原生 UUID 存储。
 - [COMMENT](https://www.postgresql.org/docs/16/sql-comment.html)：`COMMENT ON` 语法。
 - [SELECT](https://www.postgresql.org/docs/16/sql-select.html)、[UPDATE](https://www.postgresql.org/docs/16/sql-update.html)、[DELETE](https://www.postgresql.org/docs/16/sql-delete.html)：各语句真实 grammar。
+- [INSERT](https://www.postgresql.org/docs/16/sql-insert.html)、[函数与操作符](https://www.postgresql.org/docs/16/functions.html)和[索引类型](https://www.postgresql.org/docs/16/indexes-types.html)：写入、表达式、操作符类与索引能力。
 - [WITH](https://www.postgresql.org/docs/16/queries-with.html)：data-modifying CTE 的 `INSERT`/`UPDATE`/`DELETE` 行为。
 - [系统列](https://www.postgresql.org/docs/16/ddl-system-columns.html)：`ctid` 不能作为长期行标识。
 - [ALTER TABLE](https://www.postgresql.org/docs/16/sql-altertable.html)：字段类型与约束变更语法。
 - [显式锁](https://www.postgresql.org/docs/16/explicit-locking.html)与 [PREPARE TRANSACTION](https://www.postgresql.org/docs/16/sql-prepare-transaction.html)：锁模式和两阶段提交。
+- [PREPARE](https://www.postgresql.org/docs/16/sql-prepare.html)与[事务隔离](https://www.postgresql.org/docs/16/transaction-iso.html)：服务端预处理、参数形式和隔离级别实际语义。
+- [TLS](https://www.postgresql.org/docs/16/ssl-tcp.html)与[客户端认证](https://www.postgresql.org/docs/16/client-authentication.html)：加密连接、证书和账号认证配置。
 - [并发索引](https://www.postgresql.org/docs/16/sql-createindex.html#SQL-CREATEINDEX-CONCURRENTLY)：`CONCURRENTLY` 的限制与失败状态。
 
 ## MySQL 5.7
@@ -22,9 +25,12 @@
 - [标识符长度](https://docs.oracle.com/cd/E17952_01/mysql-5.7-en/identifier-length.html)：多数对象 64 字符及对象类别差异。
 - [字符集与排序规则](https://docs.oracle.com/cd/E17952_01/mysql-5.7-en/charset.html)及 [InnoDB](https://docs.oracle.com/cd/E17952_01/mysql-5.7-en/innodb-storage-engine.html)：`utf8mb4`、collation 与表引擎。
 - [JOIN](https://docs.oracle.com/cd/E17952_01/mysql-5.7-en/join.html)：`JOIN`/`CROSS JOIN`/`INNER JOIN` 关系及 5.7 支持范围。
+- [SELECT](https://docs.oracle.com/cd/E17952_01/mysql-5.7-en/select.html)、[INSERT](https://docs.oracle.com/cd/E17952_01/mysql-5.7-en/insert.html)与[函数/操作符](https://docs.oracle.com/cd/E17952_01/mysql-5.7-en/functions.html)：查询、写入、类型转换和表达式行为。
 - [UPDATE](https://docs.oracle.com/cd/E17952_01/mysql-5.7-en/update.html)与 [DELETE](https://docs.oracle.com/cd/E17952_01/mysql-5.7-en/delete.html)：单表 `ORDER BY`/`LIMIT`、多表语法与赋值顺序。
 - [ALTER TABLE](https://docs.oracle.com/cd/E17952_01/mysql-5.7-en/alter-table.html)：`MODIFY`/`CHANGE`、在线 DDL 和列属性重述。
 - [XA](https://docs.oracle.com/cd/E17952_01/mysql-5.7-en/xa.html)与 [InnoDB locking](https://docs.oracle.com/cd/E17952_01/mysql-5.7-en/innodb-locking.html)：分布式事务、record/gap/next-key locks。
+- [SET TRANSACTION](https://docs.oracle.com/cd/E17952_01/mysql-5.7-en/set-transaction.html)与[预处理语句](https://docs.oracle.com/cd/E17952_01/mysql-5.7-en/sql-prepared-statements.html)：隔离级别、作用域、参数和服务端预处理边界。
+- [TLS](https://docs.oracle.com/cd/E17952_01/mysql-5.7-en/using-encrypted-connections.html)与[账号管理](https://docs.oracle.com/cd/E17952_01/mysql-5.7-en/account-management-statements.html)：加密连接、账号与凭据策略。
 
 ## 维护要求
 

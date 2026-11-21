@@ -15,6 +15,8 @@
 
 方言适配原则：差异规则不保留公共抽象占位。例如编码、schema、标识符长度、注释、JOIN、DML 子句、赋值语义、锁、字段变更和在线 DDL 均直接拆成 MySQL/PostgreSQL 两条规则。语法事实来源见 [dialect-spec-sources.md](dialect-spec-sources.md)。
 
+当前逐条审计结果为 24 条 common、130 条双方言拆分源条款；完整清单见 [dialect-isolation-audit.md](dialect-isolation-audit.md)。即使规则表面措辞相同，只要底层类型、边界、版本支持、优化器、锁或检测实现不同，也按拆分处理。
+
 映射原则：
 
 层级判定读取条款标题及其说明正文；若源条款把强制项和建议项混写，自动 Block 只覆盖明确强制部分，建议部分另作人工执行计划评审。

@@ -13,6 +13,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 RULES_DIR = ROOT / "rules"
 CATALOG_PATH = RULES_DIR / "catalog.json"
+AUDIT_PATH = ROOT / "references" / "dialect-isolation-audit.md"
 VALID_LEVELS = {"prohibition", "mandatory", "recommendation", "reference"}
 VALID_GATES = {"block", "warn", "info"}
 VALID_KINDS = {"static", "manual", "hybrid"}
@@ -23,10 +24,16 @@ EXPECTED_SOURCE_DOMAINS = {
     "CMT": 10, "SEL": 35, "INS": 3, "DEL": 3, "UPD": 7,
     "CLI": 5, "TXN": 8, "UPG": 13, "SEC": 3, "KOO": 9,
 }
-EXPECTED_COMMON_STATIC_IDS = {
-    "G.DEL.01", "G.INS.01", "G.SEL.12", "G.TAB.04", "G.TAB.16",
-    "G.TXN.01", "G.UPD.01", "G.UPG.03", "G.UPG.10", "G.UPG.11",
+EXPECTED_COMMON_IDS = {
+    "G.DBS.04", "G.TAB.02",
+    "G.FMT.02", "G.FMT.03", "G.FMT.07", "G.FMT.12",
+    "G.NAM.04", "G.NAM.05", "G.NAM.06",
+    "G.CMT.01", "G.CMT.02", "G.CMT.04", "G.CMT.05", "G.CMT.08",
+    "G.CMT.09", "G.CMT.10",
+    "G.KOO.01", "G.KOO.02", "G.KOO.03", "G.KOO.04", "G.KOO.05",
+    "G.KOO.07", "G.KOO.08", "G.KOO.09",
 }
+EXPECTED_COMMON_STATIC_IDS: set[str] = set()
 REQUIRED = {"id", "source", "name", "level", "gate", "scope", "dialects", "condition", "check", "examples", "remediation", "confirmation_required"}
 
 
@@ -108,6 +115,8 @@ def main() -> int:
     common_ids = {rule["id"] for rule in files["common"]["rules"]}
     if not all(re.fullmatch(r"G\.[A-Z]+\.[0-9]+", rule_id) for rule_id in common_ids):
         fail("common catalog may contain only unsplit numbered source clauses")
+    if common_ids != EXPECTED_COMMON_IDS:
+        fail(f"common catalog allowlist mismatch missing={sorted(EXPECTED_COMMON_IDS-common_ids)} extra={sorted(common_ids-EXPECTED_COMMON_IDS)}")
     split_sources: dict[str, set[str]] = {}
     for dialect in VALID_DIALECTS:
         dialect_sources = {
@@ -125,6 +134,15 @@ def main() -> int:
             fail(f"{dialect}: split sources must not remain in common.json: {sorted(duplicates)}")
     if split_sources["mysql"] != split_sources["postgresql"]:
         fail("every dialect-different source clause must have both MySQL and PostgreSQL rules")
+    audit = AUDIT_PATH.read_text(encoding="utf-8")
+    for source_id in expected_source_ids:
+        row_marker = f"| `{source_id}` |"
+        if audit.count(row_marker) != 1:
+            fail(f"dialect audit must contain exactly one row for {source_id}")
+        row = next(line for line in audit.splitlines() if line.startswith(row_marker))
+        expected_conclusion = "保留 common" if source_id in common_ids else "拆分"
+        if f"| {expected_conclusion} |" not in row:
+            fail(f"dialect audit conclusion mismatch for {source_id}")
     source_domains = Counter(rule_id.split(".")[1] for rule_id in expected_source_ids)
     if dict(source_domains) != EXPECTED_SOURCE_DOMAINS:
         fail(f"source domain expectation is inconsistent: {dict(source_domains)}")

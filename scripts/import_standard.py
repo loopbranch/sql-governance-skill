@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Import numbered G.* clauses from a Markdown SQL standard.
+"""Import only exhaustively audited, dialect-independent G.* clauses.
 
-The generated common catalog is a traceability baseline. Dialect-specific
-details live in mysql.json and postgresql.json and are maintained separately.
+SQL-facing clauses are intentionally excluded from common.json and must be
+maintained as paired MySQL/PostgreSQL rules. The allowlist is validated against
+the 154-row isolation audit.
 """
 
 from __future__ import annotations
@@ -18,18 +19,16 @@ LEVEL_TERMS = {
     "recommendation": ("建议", "避免", "不宜", "优先", "尽量", "不要"),
 }
 
-STATIC_IDS = {
-    "G.DEL.01", "G.INS.01", "G.SEL.12", "G.TAB.04", "G.TAB.16",
-    "G.TXN.01", "G.UPD.01", "G.UPG.03", "G.UPG.10", "G.UPG.11",
-}
+STATIC_IDS: set[str] = set()
 
-DIALECT_SPLIT_IDS = {
-    "G.DBS.01", "G.DBS.02", "G.DBS.05", "G.TAB.01", "G.TAB.05", "G.TAB.13",
-    "G.TAB.15", "G.TAB.18", "G.TAB.19", "G.IDX.06", "G.IDX.07", "G.IDX.11",
-    "G.NAM.01", "G.NAM.03", "G.SEL.01", "G.SEL.05", "G.SEL.08", "G.SEL.17",
-    "G.SEL.35", "G.DEL.02", "G.DEL.03", "G.UPD.02", "G.UPD.03", "G.UPD.05",
-    "G.UPD.06", "G.TXN.07", "G.TXN.08", "G.UPG.02", "G.UPG.04", "G.UPG.05",
-    "G.UPG.07", "G.UPG.08", "G.UPG.12", "G.UPG.13",
+COMMON_SOURCE_IDS = {
+    "G.DBS.04", "G.TAB.02",
+    "G.FMT.02", "G.FMT.03", "G.FMT.07", "G.FMT.12",
+    "G.NAM.04", "G.NAM.05", "G.NAM.06",
+    "G.CMT.01", "G.CMT.02", "G.CMT.04", "G.CMT.05", "G.CMT.08",
+    "G.CMT.09", "G.CMT.10",
+    "G.KOO.01", "G.KOO.02", "G.KOO.03", "G.KOO.04", "G.KOO.05",
+    "G.KOO.07", "G.KOO.08", "G.KOO.09",
 }
 
 MANUAL_PREFIXES = {"DBS", "CLI", "SEC", "KOO"}
@@ -196,7 +195,7 @@ def parse_clauses(markdown: str) -> list[dict[str, object]]:
             if sum(map(len, prose)) >= 420:
                 break
         for clause_id in expand_id(match.group(2)):
-            if clause_id in DIALECT_SPLIT_IDS:
+            if clause_id not in COMMON_SOURCE_IDS:
                 continue
             prefix = clause_id.split(".")[1]
             name = NAME_OVERRIDES.get(clause_id) or title or clause_id
@@ -237,7 +236,7 @@ def main() -> int:
     payload = {
         "schema_version": "2.0.0",
         "dialect": "common",
-        "description": "Portable rules derived from the supplied SQL programming standard; apply with exactly one dialect catalog.",
+        "description": "Dialect-independent organization, text-format and release-process rules; apply with exactly one dialect catalog.",
         "rules": clauses,
     }
     args.output.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

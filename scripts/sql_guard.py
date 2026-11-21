@@ -26,23 +26,32 @@ class Finding:
     snippet: str
 
 
-COMMON_GUARD_RULES = {
-    "G.DEL.01", "G.INS.01", "G.SEL.12", "G.TAB.04",
-    "G.TAB.16", "G.TXN.01", "G.UPD.01", "G.UPG.03", "G.UPG.10",
-    "G.UPG.11",
-}
+COMMON_GUARD_RULES: set[str] = set()
 DIALECT_GUARD_RULES = {
     "mysql": {
         "MYSQL-ENC-001", "MYSQL-PK-001", "MYSQL-SEL-008", "MYSQL-TAB-001",
         "MYSQL-TXN-007", "MYSQL-UPD-001", "MYSQL-UPD-002", "MYSQL-UPG-005",
-        "MYSQL-UPG-007", "MYSQL-UPG-008",
+        "MYSQL-UPG-007", "MYSQL-UPG-008", "MYSQL-GDEL-001", "MYSQL-GINS-001",
+        "MYSQL-GSEL-012", "MYSQL-GTAB-004", "MYSQL-GTAB-016", "MYSQL-GTXN-001",
+        "MYSQL-GUPD-001", "MYSQL-GUPG-003", "MYSQL-GUPG-010", "MYSQL-GUPG-011",
     },
     "postgresql": {
         "POSTGRESQL-PK-001", "POSTGRESQL-SEL-008", "POSTGRESQL-TAB-001",
         "POSTGRESQL-TXN-007", "POSTGRESQL-UPD-001", "POSTGRESQL-UPD-002",
         "POSTGRESQL-UPG-005", "POSTGRESQL-UPG-007", "POSTGRESQL-UPG-008",
+        "POSTGRESQL-GDEL-001", "POSTGRESQL-GINS-001", "POSTGRESQL-GSEL-012",
+        "POSTGRESQL-GTAB-004", "POSTGRESQL-GTAB-016", "POSTGRESQL-GTXN-001",
+        "POSTGRESQL-GUPD-001", "POSTGRESQL-GUPG-003", "POSTGRESQL-GUPG-010",
+        "POSTGRESQL-GUPG-011",
     },
 }
+
+
+def split_rule_id(dialect: str, source_id: str) -> str:
+    """Map a G.DOMAIN.NN source to its generated dialect rule ID."""
+    _, domain, number = source_id.split(".")
+    prefix = "MYSQL" if dialect == "mysql" else "POSTGRESQL"
+    return f"{prefix}-G{domain}-{int(number):03d}"
 
 
 def starts_line_comment(sql: str, index: int, dialect: str | None) -> bool:
@@ -368,7 +377,7 @@ def inspect_statement(file: str, line: int, statement: str, dialect: str) -> lis
                 findings.extend(inspect_statement(file, body_line, body, dialect))
 
     if re.search(r"\bselect\s+(?:(?:all|distinct)\s+)?(?:[a-z0-9_]+\.)?\*(?:\s|,|$)", normalized):
-        add(findings, file, line, "G.SEL.12", dialect, "SELECT * requires a documented catalog exception", statement)
+        add(findings, file, line, split_rule_id(dialect, "G.SEL.12"), dialect, "SELECT * requires a documented catalog exception", statement)
     if re.search(r"\b(?:cross|full(?:\s+outer)?)\s+join\b", normalized):
         add(findings, file, line, f"{'MYSQL' if dialect == 'mysql' else 'POSTGRESQL'}-SEL-008", dialect, "CROSS JOIN and FULL JOIN require dialect-specific remediation", statement)
 
@@ -386,7 +395,8 @@ def inspect_statement(file: str, line: int, statement: str, dialect: str) -> lis
             where_expression = normalized[where_token[2]:end]
         invalid_where = where_token is None or is_trivial_where(where_expression)
         if invalid_where:
-            add(findings, file, line, "G.UPD.01" if dml_kind == "update" else "G.DEL.01", dialect, "UPDATE/DELETE must have a non-trivial WHERE clause", statement)
+            source_id = "G.UPD.01" if dml_kind == "update" else "G.DEL.01"
+            add(findings, file, line, split_rule_id(dialect, source_id), dialect, "UPDATE/DELETE must have a non-trivial WHERE clause", statement)
         if dml_kind == "update":
             tail_names = [word for word, _, _ in tail_words]
             if any(tail_names[index:index + 2] == ["order", "by"] for index in range(len(tail_names) - 1)):
@@ -395,19 +405,19 @@ def inspect_statement(file: str, line: int, statement: str, dialect: str) -> lis
                 add(findings, file, line, f"{'MYSQL' if dialect == 'mysql' else 'POSTGRESQL'}-UPD-001", dialect, "Top-level UPDATE LIMIT is prohibited; use a stable-key batch design", statement)
 
     if re.search(r"\bforeign\s+key\b|\breferences\s+[a-z0-9_`\"]+\s*\(", normalized):
-        add(findings, file, line, "G.TAB.04", dialect, "Foreign keys are prohibited", statement)
+        add(findings, file, line, split_rule_id(dialect, "G.TAB.04"), dialect, "Foreign keys are prohibited", statement)
     create_table = CREATE_TABLE_RE.match(normalized)
     if create_table:
         after_table = normalized[create_table.end():].lstrip()
         if not re.match(r"^if\s+not\s+exists\b", after_table):
-            add(findings, file, line, "G.UPG.10", dialect, "CREATE TABLE must use IF NOT EXISTS", statement)
+            add(findings, file, line, split_rule_id(dialect, "G.UPG.10"), dialect, "CREATE TABLE must use IF NOT EXISTS", statement)
         if not re.search(r"\bprimary\s+key\b", normalized):
-            add(findings, file, line, "G.TAB.16", dialect, "Every table must define a primary key", statement)
+            add(findings, file, line, split_rule_id(dialect, "G.TAB.16"), dialect, "Every table must define a primary key", statement)
     if re.match(r"^drop\s+table\b", normalized) and not re.match(r"^drop\s+table\s+if\s+exists\b", normalized):
-        add(findings, file, line, "G.UPG.11", dialect, "DROP TABLE must use IF EXISTS", statement)
+        add(findings, file, line, split_rule_id(dialect, "G.UPG.11"), dialect, "DROP TABLE must use IF EXISTS", statement)
     if re.match(r"^alter\s+table\b", normalized):
         if re.search(r"\bdrop\s+column\s+(?:if\s+exists\s+)?[a-z0-9_`\"]+", normalized):
-            add(findings, file, line, "G.UPG.03", dialect, "Dropping columns is prohibited", statement)
+            add(findings, file, line, split_rule_id(dialect, "G.UPG.03"), dialect, "Dropping columns is prohibited", statement)
         if re.search(r"\b(?:modify|change)\s+(?:column\s+)?|\balter\s+column\s+[a-z0-9_\"]+\s+(?:set\s+data\s+)?type\b", normalized):
             add(findings, file, line, f"{'MYSQL' if dialect == 'mysql' else 'POSTGRESQL'}-UPG-005", dialect, "Direct column type modification requires a compatible expand-contract plan", statement)
         if re.search(r"\balter\s+column\s+[a-z0-9_\"]+\s+set\s+not\s+null\b", normalized):
@@ -419,13 +429,13 @@ def inspect_statement(file: str, line: int, statement: str, dialect: str) -> lis
     if main and main[1] == "insert":
         insert_sql = normalized[main[2]:]
         if not re.match(r"^insert\s+into\s+[a-z0-9_.`\"]+\s*\(", insert_sql):
-            add(findings, file, line, "G.INS.01", dialect, "INSERT must list target columns", statement)
+            add(findings, file, line, split_rule_id(dialect, "G.INS.01"), dialect, "INSERT must list target columns", statement)
     if re.search(r"\bxa\s+(?:start|begin|end|prepare|commit|rollback)\b", normalized):
         add(findings, file, line, "MYSQL-TXN-007" if dialect == "mysql" else "POSTGRESQL-TXN-007", dialect, "Distributed transactions require explicit approval", statement)
     if dialect == "postgresql" and re.search(r"\b(?:prepare\s+transaction|commit\s+prepared|rollback\s+prepared)\b", normalized):
         add(findings, file, line, "POSTGRESQL-TXN-007", dialect, "Prepared transactions require explicit approval", statement)
     if re.search(r"\bset\s+(?:(?:session|global)\s+)?transaction\s+isolation\s+level\b", normalized):
-        add(findings, file, line, "G.TXN.01", dialect, "Explicit transaction isolation levels are prohibited", statement)
+        add(findings, file, line, split_rule_id(dialect, "G.TXN.01"), dialect, "Explicit transaction isolation levels are prohibited", statement)
 
     if dialect == "mysql":
         if re.search(r"\bauto_increment\b", normalized):

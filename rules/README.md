@@ -25,9 +25,9 @@
 
 ## 自动门禁覆盖
 
-`check.kind=static` 只用于 `scripts/sql_guard.py` 已实现且无需 live schema 即可高置信判定的公共规则：
+`check.kind=static` 只用于 `scripts/sql_guard.py` 已实现且无需 live schema 即可高置信判定的规则。由于 SQL 词法和 grammar 本身存在方言边界，当前没有公共 static 规则：
 
-公共自动规则为 `G.DEL.01`、`G.INS.01`、`G.SEL.12`、`G.TAB.04`、`G.TAB.16`、`G.TXN.01`、`G.UPD.01`、`G.UPG.03`、`G.UPG.10`、`G.UPG.11`。方言自动规则以 `sql_guard.py` 的 `DIALECT_GUARD_RULES` 与 JSON `checked_rules` 为准。
+所有自动规则均位于 `mysql.json` 或 `postgresql.json`，以 `sql_guard.py` 的 `DIALECT_GUARD_RULES` 与 JSON `checked_rules` 为准。finding ID 必须以当前方言前缀开头，禁止跨方言返回规则。
 
 `hybrid` 规则也可以有明确的高置信语法分支进入 `checked_rules`，但其缺省配置、运行环境或业务语义仍需人工证据。`POSTGRESQL-DDL-001` 依赖生产环境、表规模和迁移事务配置，不因缺少 `CONCURRENTLY` 被脚本直接阻断。
 
@@ -38,10 +38,11 @@ JSON 输出中的 `checked_rules` 明确列出本次自动检查集合。退出�
 1. 规则变更通过 PR，不直接改消费方 submodule 内文件。
 2. 新增规则使用新 ID；语义变化不得静默覆盖旧规则。
 3. 运行 `python3 scripts/validate_rules.py` 验证每个方言路径的 154 条源覆盖、拆分对称性、方言路由、字段、枚举、ID 唯一性和 static/guard 对账。
-4. 更新 `CHANGELOG.md`，按 `MAJOR.MINOR.PATCH` 判断版本：
+4. 逐条审计结论见 `references/dialect-isolation-audit.md`；改变 common allowlist 时必须同步审计表和测试。
+5. 更新 `CHANGELOG.md`，按 `MAJOR.MINOR.PATCH` 判断版本：
    - MAJOR：删除规则、改变既有规则语义或新增会让既有合规代码失败的 Block；
    - MINOR：向后兼容地新增规则、检测器或模板能力；
    - PATCH：澄清、误报修复、示例或文档修订，不改变门禁语义。
-5. 合并后创建签名 tag（如 `v1.1.0`）和 GitHub Release。
+6. 合并后创建签名 tag（如 `v1.1.0`）和 GitHub Release。
 
 `source` 仅用于追溯，不代表公共仓库可以转载受限原文。发布前应由规范所有者确认授权和脱敏范围。

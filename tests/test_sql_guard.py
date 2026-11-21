@@ -19,12 +19,15 @@ class SqlGuardTest(unittest.TestCase):
         _, findings = sql_guard.inspect("example.sql", sql, dialect)
         return {finding.rule_id for finding in findings}
 
+    def split_id(self, dialect: str, source_id: str) -> str:
+        return sql_guard.split_rule_id(dialect, source_id)
+
     def test_string_where_does_not_satisfy_update_filter(self) -> None:
-        self.assertIn("G.UPD.01", self.rule_ids("update t_user set note='where x';", "mysql"))
+        self.assertIn(self.split_id("mysql", "G.UPD.01"), self.rule_ids("update t_user set note='where x';", "mysql"))
 
     def test_cte_select_star_is_detected(self) -> None:
         sql = "with active as (select id from t_user) select * from active;"
-        self.assertIn("G.SEL.12", self.rule_ids(sql, "postgresql"))
+        self.assertIn(self.split_id("postgresql", "G.SEL.12"), self.rule_ids(sql, "postgresql"))
 
     def test_semicolon_inside_literal_does_not_split_statement(self) -> None:
         statements = sql_guard.split_statements("update t_user set note='a;b' where id=1;")
@@ -60,17 +63,18 @@ class SqlGuardTest(unittest.TestCase):
 
     def test_update_word_outside_main_dml_is_not_misclassified(self) -> None:
         sql = "select id from t_user where id=1 for update;"
-        self.assertNotIn("G.UPD.01", self.rule_ids(sql, "postgresql"))
+        self.assertNotIn(self.split_id("postgresql", "G.UPD.01"), self.rule_ids(sql, "postgresql"))
         ddl = "create table if not exists t_user (id bigint primary key, updated_at datetime on update current_timestamp);"
-        self.assertNotIn("G.UPD.01", self.rule_ids(ddl, "mysql"))
+        self.assertNotIn(self.split_id("mysql", "G.UPD.01"), self.rule_ids(ddl, "mysql"))
 
     def test_tautology_with_real_predicate_is_valid(self) -> None:
-        self.assertNotIn("G.UPD.01", self.rule_ids("update t_user set name=? where 1=1 and id=?;", "mysql"))
-        self.assertIn("G.UPD.01", self.rule_ids("update t_user set name=? where (1=1);", "mysql"))
+        mysql_update = self.split_id("mysql", "G.UPD.01")
+        self.assertNotIn(mysql_update, self.rule_ids("update t_user set name=? where 1=1 and id=?;", "mysql"))
+        self.assertIn(mysql_update, self.rule_ids("update t_user set name=? where (1=1);", "mysql"))
 
     def test_quoted_identifiers_are_not_clause_keywords(self) -> None:
         rules = self.rule_ids('update t_user set "where" = 1;', "postgresql")
-        self.assertIn("G.UPD.01", rules)
+        self.assertIn(self.split_id("postgresql", "G.UPD.01"), rules)
         rules = self.rule_ids("update t_user set `limit` = 1 where id = 2;", "mysql")
         self.assertNotIn("POSTGRESQL-UPD-001", rules)
 
@@ -79,12 +83,12 @@ class SqlGuardTest(unittest.TestCase):
         rules = self.rule_ids(sql, "postgresql")
         self.assertNotIn("POSTGRESQL-UPD-002", rules)
         self.assertNotIn("POSTGRESQL-UPD-001", rules)
-        self.assertNotIn("G.UPD.01", rules)
+        self.assertNotIn(self.split_id("postgresql", "G.UPD.01"), rules)
 
     def test_drop_non_column_objects_is_not_drop_column(self) -> None:
         for action in ("drop index idx_user", "drop constraint ck_user", "drop primary key"):
-            self.assertNotIn("G.UPG.03", self.rule_ids(f"alter table t_user {action};", "mysql"))
-        self.assertIn("G.UPG.03", self.rule_ids("alter table t_user drop column name;", "mysql"))
+            self.assertNotIn(self.split_id("mysql", "G.UPG.03"), self.rule_ids(f"alter table t_user {action};", "mysql"))
+        self.assertIn(self.split_id("mysql", "G.UPG.03"), self.rule_ids("alter table t_user drop column name;", "mysql"))
 
     def test_check_constraint_is_not_new_not_null_column(self) -> None:
         sql = "alter table t_user add constraint ck_name check (name is not null);"
@@ -104,12 +108,12 @@ class SqlGuardTest(unittest.TestCase):
     def test_temporary_and_unlogged_tables_receive_table_checks(self) -> None:
         for sql in ("create temporary table t_tmp (id bigint);", "create unlogged table t_tmp (id bigint);"):
             rules = self.rule_ids(sql, "postgresql")
-            self.assertIn("G.UPG.10", rules)
-            self.assertIn("G.TAB.16", rules)
+            self.assertIn(self.split_id("postgresql", "G.UPG.10"), rules)
+            self.assertIn(self.split_id("postgresql", "G.TAB.16"), rules)
 
     def test_cte_insert_without_columns_is_detected(self) -> None:
         sql = "with source as (select 1 as id) insert into t_user values (1);"
-        self.assertIn("G.INS.01", self.rule_ids(sql, "postgresql"))
+        self.assertIn(self.split_id("postgresql", "G.INS.01"), self.rule_ids(sql, "postgresql"))
 
     def test_all_mysql_charset_declarations_are_checked(self) -> None:
         sql = "create table if not exists t_user (id binary(16) primary key, name varchar(20) character set latin1) engine=InnoDB default charset=utf8mb4;"
@@ -123,19 +127,19 @@ class SqlGuardTest(unittest.TestCase):
     def test_hash_comment_is_mysql_only(self) -> None:
         pg = "select 5 # 3; select * from t_user;"
         self.assertEqual(2, len(sql_guard.split_statements(pg, "postgresql")))
-        self.assertIn("G.SEL.12", self.rule_ids(pg, "postgresql"))
+        self.assertIn(self.split_id("postgresql", "G.SEL.12"), self.rule_ids(pg, "postgresql"))
         mysql = "select 5 # comment ; hidden\n; select id from t_user;"
         self.assertEqual(2, len(sql_guard.split_statements(mysql, "mysql")))
 
     def test_mysql_double_dash_requires_following_whitespace(self) -> None:
         sql = "select 1--2; select * from t_user;"
         self.assertEqual(2, len(sql_guard.split_statements(sql, "mysql")))
-        self.assertIn("G.SEL.12", self.rule_ids(sql, "mysql"))
+        self.assertIn(self.split_id("mysql", "G.SEL.12"), self.rule_ids(sql, "mysql"))
 
     def test_postgresql_plain_strings_do_not_backslash_escape_quotes(self) -> None:
         sql = "select 'a\\'; select * from t_user;"
         self.assertEqual(2, len(sql_guard.split_statements(sql, "postgresql")))
-        self.assertIn("G.SEL.12", self.rule_ids(sql, "postgresql"))
+        self.assertIn(self.split_id("postgresql", "G.SEL.12"), self.rule_ids(sql, "postgresql"))
         escaped = "select E'a\\\';b'; select id from t_user;"
         self.assertEqual(2, len(sql_guard.split_statements(escaped, "postgresql")))
 
@@ -146,18 +150,18 @@ class SqlGuardTest(unittest.TestCase):
     def test_mysql_does_not_treat_dollar_tags_as_strings(self) -> None:
         sql = "select $tag$; select * from t_user; select $tag$;"
         self.assertEqual(3, len(sql_guard.split_statements(sql, "mysql")))
-        self.assertIn("G.SEL.12", self.rule_ids(sql, "mysql"))
+        self.assertIn(self.split_id("mysql", "G.SEL.12"), self.rule_ids(sql, "mysql"))
 
     def test_postgresql_nested_block_comments_do_not_leak_sql(self) -> None:
         sql = "/* outer /* select * from hidden; */ still hidden */ select id from shown;"
         self.assertEqual(1, len(sql_guard.split_statements(sql, "postgresql")))
-        self.assertNotIn("G.SEL.12", self.rule_ids(sql, "postgresql"))
+        self.assertNotIn(self.split_id("postgresql", "G.SEL.12"), self.rule_ids(sql, "postgresql"))
 
     def test_postgresql_data_modifying_ctes_receive_dml_checks(self) -> None:
         cases = {
-            "with deleted as (delete from t_user returning id) select count(*) from deleted;": "G.DEL.01",
-            "with changed as (update t_user set active=false returning id) select count(*) from changed;": "G.UPD.01",
-            "with inserted as (insert into t_user values (1) returning id) select count(*) from inserted;": "G.INS.01",
+            "with deleted as (delete from t_user returning id) select count(*) from deleted;": self.split_id("postgresql", "G.DEL.01"),
+            "with changed as (update t_user set active=false returning id) select count(*) from changed;": self.split_id("postgresql", "G.UPD.01"),
+            "with inserted as (insert into t_user values (1) returning id) select count(*) from inserted;": self.split_id("postgresql", "G.INS.01"),
         }
         for sql, expected in cases.items():
             self.assertIn(expected, self.rule_ids(sql, "postgresql"))
@@ -178,6 +182,17 @@ class SqlGuardTest(unittest.TestCase):
             "auto",
         )
         self.assertEqual("postgresql", dialect)
+
+    def test_findings_never_use_the_other_dialect_rule_ids(self) -> None:
+        mysql_sql = "create table t_user (id bigint auto_increment primary key); select * from t_user;"
+        _, mysql_findings = sql_guard.inspect("mysql.sql", mysql_sql, "mysql")
+        self.assertTrue(mysql_findings)
+        self.assertTrue(all(item.rule_id.startswith("MYSQL-") for item in mysql_findings))
+
+        postgresql_sql = "create table t_user (id bigserial primary key) engine=InnoDB; select * from t_user;"
+        _, postgresql_findings = sql_guard.inspect("postgresql.sql", postgresql_sql, "postgresql")
+        self.assertTrue(postgresql_findings)
+        self.assertTrue(all(item.rule_id.startswith("POSTGRESQL-") for item in postgresql_findings))
 
 
 if __name__ == "__main__":

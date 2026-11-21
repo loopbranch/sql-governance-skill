@@ -21,6 +21,8 @@ sql-governance-skill/
 │   └── developer-confirmation.md    # 高风险变更明确确认模板
 ├── references/
 │   ├── severity-model.md            # 层级、门禁和静态/人工判定模型
+│   ├── dialect-spec-sources.md       # MySQL 5.7 / PostgreSQL 16 官方规范入口
+│   ├── dialect-isolation-audit.md    # 154 条源规则逐条隔离结论
 │   ├── source-mapping.md            # 原规范映射原则与公开边界
 │   └── submodule-integration.md      # 引入、克隆、升级、锁定与一致性
 ├── scripts/
@@ -67,4 +69,4 @@ git submodule update --init --recursive
 
 - 本仓库不执行生产 SQL，也不代替数据库变更审批系统。
 - 开发者“确认”只允许继续处理准确描述的方案，不豁免 Block，不等于批准生产执行。
-- 每个方言加载路径恰好覆盖附件全部 154 个编号条款；双方言有任一差异的源条款只在 `mysql.json` 与 `postgresql.json` 成对维护，不在 `common.json` 保留抽象副本。事实依据见 [方言规范依据](references/dialect-spec-sources.md)。
+- 每个方言加载路径恰好覆盖附件全部 154 个编号条款。穷举审计后仅 24 条纯组织/文本/归档规则保留在 `common.json`，其余 130 条源条款在 `mysql.json` 与 `postgresql.json` 成对维护。事实依据见 [方言规范依据](references/dialect-spec-sources.md)，逐条结论见 [隔离审计](references/dialect-isolation-audit.md)。

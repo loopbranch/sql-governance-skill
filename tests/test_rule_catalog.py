@@ -22,6 +22,13 @@ import_standard = importlib.util.module_from_spec(IMPORT_SPEC)
 sys.modules["catalog_import_standard"] = import_standard
 IMPORT_SPEC.loader.exec_module(import_standard)
 
+VALIDATE_PATH = ROOT / "scripts" / "validate_rules.py"
+VALIDATE_SPEC = importlib.util.spec_from_file_location("catalog_validate_rules", VALIDATE_PATH)
+assert VALIDATE_SPEC and VALIDATE_SPEC.loader
+validate_rules = importlib.util.module_from_spec(VALIDATE_SPEC)
+sys.modules["catalog_validate_rules"] = validate_rules
+VALIDATE_SPEC.loader.exec_module(validate_rules)
+
 
 class RuleCatalogTest(unittest.TestCase):
     @classmethod
@@ -31,6 +38,10 @@ class RuleCatalogTest(unittest.TestCase):
         cls.mysql_rules = {
             rule["id"]: rule
             for rule in json.loads((ROOT / "rules" / "mysql.json").read_text(encoding="utf-8"))["rules"]
+        }
+        cls.postgresql_rules = {
+            rule["id"]: rule
+            for rule in json.loads((ROOT / "rules" / "postgresql.json").read_text(encoding="utf-8"))["rules"]
         }
 
     def test_static_catalog_matches_guard_coverage(self) -> None:
@@ -49,13 +60,49 @@ class RuleCatalogTest(unittest.TestCase):
 
     def test_source_body_contributes_to_severity(self) -> None:
         self.assertEqual("mandatory", self.mysql_rules["MYSQL-ENC-001"]["level"])
-        self.assertEqual("prohibition", self.rules["G.TAB.06"]["level"])
+        self.assertEqual("prohibition", self.mysql_rules["MYSQL-GTAB-006"]["level"])
 
     def test_dialect_differences_are_not_kept_as_common_rules(self) -> None:
         split_sources = {
             source for rule in self.mysql_rules.values() for source in rule["source"]
         }
         self.assertTrue(split_sources.isdisjoint(self.rules))
+
+    def test_common_catalog_is_exactly_the_audited_allowlist(self) -> None:
+        self.assertEqual(validate_rules.EXPECTED_COMMON_IDS, set(self.rules))
+
+    def test_every_noncommon_source_has_both_dialect_variants(self) -> None:
+        expected_sources = {
+            f"G.{domain}.{number:02d}"
+            for domain, count in validate_rules.EXPECTED_SOURCE_DOMAINS.items()
+            for number in range(1, count + 1)
+        }
+        mysql_sources = {source for rule in self.mysql_rules.values() for source in rule["source"]}
+        postgresql_sources = {source for rule in self.postgresql_rules.values() for source in rule["source"]}
+        expected_split = expected_sources - set(self.rules)
+        self.assertEqual(expected_split, mysql_sources)
+        self.assertEqual(expected_split, postgresql_sources)
+
+    def test_generated_variants_are_dialect_scoped_and_have_evidence_examples(self) -> None:
+        for dialect, rules, prefix, label in (
+            ("mysql", self.mysql_rules, "MYSQL-G", "MySQL 5.7"),
+            ("postgresql", self.postgresql_rules, "POSTGRESQL-G", "PostgreSQL 16"),
+        ):
+            for rule_id, rule in rules.items():
+                self.assertEqual([dialect], rule["dialects"])
+                if not rule_id.startswith(prefix):
+                    continue
+                self.assertIn(label, rule["name"])
+                self.assertIn(label, rule["condition"])
+                self.assertTrue(rule["examples"]["positive"].strip())
+                self.assertTrue(rule["examples"]["negative"].strip())
+
+    def test_audit_table_lists_all_154_sources_once(self) -> None:
+        audit = (ROOT / "references" / "dialect-isolation-audit.md").read_text(encoding="utf-8")
+        for domain, count in validate_rules.EXPECTED_SOURCE_DOMAINS.items():
+            for number in range(1, count + 1):
+                source = f"G.{domain}.{number:02d}"
+                self.assertEqual(1, audit.count(f"| `{source}` |"), source)
 
     def test_mysql_update_static_rule_is_declared_by_guard(self) -> None:
         self.assertEqual("static", self.mysql_rules["MYSQL-UPD-001"]["check"]["kind"])
@@ -69,9 +116,8 @@ class RuleCatalogTest(unittest.TestCase):
 
     def test_imported_select_star_clause_keeps_its_operator(self) -> None:
         markdown = "### **G.SEL.12 禁止使用 `select *`**\n\n不得使用 `select *`。"
-        rule = import_standard.parse_clauses(markdown)[0]
-        self.assertIn("select *", rule["name"])
-        self.assertIn("select *", rule["condition"])
+        self.assertEqual([], import_standard.parse_clauses(markdown))
+        self.assertIn("select *", import_standard.clean("禁止使用 `select *`"))
 
 
 if __name__ == "__main__":
