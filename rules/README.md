@@ -1,6 +1,13 @@
 # 规则库约定
 
-`catalog.json` 是机器可读规则唯一事实来源，`schema.json` 定义格式。模板和 `SKILL.md` 只引用规则，不复制规则正文。
+`catalog.json` 是规则路由清单，`common.json` 只保存双方言无差异的规则，`mysql.json` 与 `postgresql.json` 成对保存所有方言差异。每个加载路径都完整覆盖 154 个源条款。`schema.json` 定义规则文件格式。
+
+加载顺序固定为：
+
+- MySQL：`common.json` → `mysql.json`；
+- PostgreSQL：`common.json` → `postgresql.json`。
+
+只要语法、语义、支持范围、版本行为或整改方式存在差异，源条款就不得留在 `common.json`，必须拆成两条方言规则。官方规范索引见 `references/dialect-spec-sources.md`。
 
 每条规则包含：
 
@@ -9,21 +16,29 @@
 - `level`：`prohibition | mandatory | recommendation | reference`；
 - `gate`：`block | warn | info`；
 - `scope`：适用对象；
+- `dialects`：规则适用的数据库方言；
 - `condition`：可验证的判定条件；
 - `check`：`static | manual | hybrid` 及检测提示；
 - `examples`：正反例；
 - `remediation`：整改建议；
 - `confirmation_required`：是否必须进入开发者确认流程。
 
+## 自动门禁覆盖
+
+`check.kind=static` 表示 `scripts/sql_guard.py` 已实现自动判定，列入 JSON 的 `checked_rules`。带有 `check.review_gate` 的混合规则列入 `screened_rules`。候选命中按 `review_gate=warn` 输出，明确的违规分支仍使用规则定义的 `gate`。退出码由实际发现的 Block 决定。
+
+字符集、引擎及分布式事务的候选命中需要结合部署配置和审批记录。可能承载 UUID 的主键列依据数据模型、生成方式或写入代码核实；业务编码可以使用字符类型。`POSTGRESQL-DDL-001` 的并发建索引要求需要结合生产环境、表规模和迁移事务配置评审。
+
 ## 维护规则
 
 1. 规则变更通过 PR，不直接改消费方 submodule 内文件。
 2. 新增规则使用新 ID；语义变化不得静默覆盖旧规则。
-3. 运行 `python3 scripts/validate_rules.py` 验证目录结构、字段、枚举和 ID 唯一性。
-4. 更新 `CHANGELOG.md`，按 `MAJOR.MINOR.PATCH` 判断版本：
+3. 运行 `python3 scripts/validate_rules.py` 验证每个方言路径的 154 条源覆盖、拆分对称性、方言路由、字段、枚举、ID 唯一性和 static/guard 对账。
+4. 逐条审计结论见 `references/dialect-isolation-audit.md`；改变 common allowlist 时必须同步审计表和测试。
+5. 更新 `CHANGELOG.md`，按 `MAJOR.MINOR.PATCH` 判断版本：
    - MAJOR：删除规则、改变既有规则语义或新增会让既有合规代码失败的 Block；
    - MINOR：向后兼容地新增规则、检测器或模板能力；
    - PATCH：澄清、误报修复、示例或文档修订，不改变门禁语义。
-5. 合并后创建签名 tag（如 `v1.1.0`）和 GitHub Release。
+6. 合并后创建签名 tag（如 `v1.1.0`）和 GitHub Release。
 
 `source` 仅用于追溯，不代表公共仓库可以转载受限原文。发布前应由规范所有者确认授权和脱敏范围。

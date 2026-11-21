@@ -1,0 +1,1014 @@
+{
+  "schema_version": "2.0.0",
+  "dialect": "postgresql",
+  "description": "PostgreSQL-specific rules. Apply after common.json; never apply MySQL-only syntax.",
+  "rules": [
+    {
+      "id": "POSTGRESQL-ENC-001",
+      "source": [
+        "G.DBS.01",
+        "G.DBS.05",
+        "G.TAB.05"
+      ],
+      "name": "PostgreSQL 使用 UTF8 并评审 collation",
+      "level": "mandatory",
+      "gate": "block",
+      "scope": [
+        "encoding",
+        "collation",
+        "ddl"
+      ],
+      "dialects": [
+        "postgresql"
+      ],
+      "condition": "server_encoding 与 client_encoding 使用 UTF8。数据库默认 collation 由部署标准统一；字段/索引使用 ICU、C/POSIX 或非确定性排序时单独评审，不得照搬 utf8mb4 名称。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "核对 pg_database、pg_collation、provider、deterministic 和连接配置。"
+      },
+      "examples": {
+        "positive": "server_encoding=UTF8, client_encoding=UTF8",
+        "negative": "在 PostgreSQL DDL 写 DEFAULT CHARSET=utf8mb4"
+      },
+      "remediation": "统一 UTF8 和部署 collation；例外验证索引与跨环境一致性。",
+      "confirmation_required": true
+    },
+    {
+      "id": "POSTGRESQL-TAB-001",
+      "source": [
+        "G.TAB.01"
+      ],
+      "name": "PostgreSQL 不使用 MySQL ENGINE 子句",
+      "level": "mandatory",
+      "gate": "block",
+      "scope": [
+        "table",
+        "ddl"
+      ],
+      "dialects": [
+        "postgresql"
+      ],
+      "condition": "普通表使用 PostgreSQL 原生 table access method；DDL 禁止 ENGINE=InnoDB/MyISAM。自定义 access method 或 storage parameter 必须评审。",
+      "check": {
+        "kind": "static",
+        "detector": "PostgreSQL 模式下发现 ENGINE= 或 MySQL 表选项即命中。"
+      },
+      "examples": {
+        "positive": "create table if not exists t_order (...);",
+        "negative": "create table t_order (...) engine=InnoDB;"
+      },
+      "remediation": "移除 MySQL 表选项；特殊存储参数按 PostgreSQL 能力评审。",
+      "confirmation_required": true
+    },
+    {
+      "id": "POSTGRESQL-TIME-001",
+      "source": [
+        "G.TAB.15"
+      ],
+      "name": "PostgreSQL 时间类型按时区语义选择",
+      "level": "mandatory",
+      "gate": "block",
+      "scope": [
+        "column",
+        "time"
+      ],
+      "dialects": [
+        "postgresql"
+      ],
+      "condition": "绝对时间点使用 timestamp with time zone（timestamptz）；不随时区转换的业务本地时间使用 timestamp without time zone，不得照搬 MySQL TIMESTAMP 的范围与转换结论。",
+      "check": {
+        "kind": "manual",
+        "detector": "核对字段语义、序列化格式、会话 TimeZone 和展示转换。"
+      },
+      "examples": {
+        "positive": "event_instant timestamptz；local_time timestamp without time zone",
+        "negative": "未定义语义而混用 timestamp/timestamptz"
+      },
+      "remediation": "按绝对时间点和本地时间拆分语义，并统一 UTC/展示策略。",
+      "confirmation_required": true
+    },
+    {
+      "id": "POSTGRESQL-IDX-001",
+      "source": [
+        "G.IDX.06",
+        "G.IDX.07"
+      ],
+      "name": "PostgreSQL 长文本使用表达式或专用索引",
+      "level": "prohibition",
+      "gate": "block",
+      "scope": [
+        "index",
+        "performance"
+      ],
+      "dialects": [
+        "postgresql"
+      ],
+      "condition": "不得使用 MySQL column(prefix_length) 语法。长文本按查询选择 left(column,n) 表达式索引、GIN/GiST、全文检索或 pg_trgm，并评估索引大小和写放大。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "解析索引表达式和 operator class，并结合查询谓词判断。"
+      },
+      "examples": {
+        "positive": "create index ... on t_doc (left(title, 32));",
+        "negative": "create index ... on t_doc (title(32));"
+      },
+      "remediation": "改用 PostgreSQL 表达式或专用索引并用 EXPLAIN 验证。",
+      "confirmation_required": true
+    },
+    {
+      "id": "POSTGRESQL-PK-001",
+      "source": [
+        "G.IDX.11"
+      ],
+      "name": "PostgreSQL 使用原生 uuid 存储有序 UUID",
+      "level": "prohibition",
+      "gate": "block",
+      "scope": [
+        "primary-key",
+        "sharding"
+      ],
+      "dialects": [
+        "postgresql"
+      ],
+      "condition": "新表不得使用 serial/bigserial 或 GENERATED AS IDENTITY 作为分布式主键；UUID 主键必须使用原生 uuid。文本或二进制候选列需结合数据模型、写入代码或生成方式确认 UUID 语义；业务编码可以按业务需要选择类型。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "识别内联、表级和复合主键中的自增定义并阻断；对可能存储 UUID 的列提示复核业务语义。",
+        "review_gate": "warn"
+      },
+      "examples": {
+        "positive": "id uuid not null primary key",
+        "negative": "模型声明为 UUID 的主键以 text、varchar(40) 或 bytea 存储"
+      },
+      "remediation": "使用应用或平台生成的有序 UUID，并以 uuid 类型存储。",
+      "confirmation_required": true
+    },
+    {
+      "id": "POSTGRESQL-DDL-001",
+      "source": [
+        "G.UPG.12",
+        "G.UPG.13"
+      ],
+      "name": "PostgreSQL 生产索引使用 CONCURRENTLY",
+      "level": "mandatory",
+      "gate": "block",
+      "scope": [
+        "index",
+        "migration"
+      ],
+      "dialects": [
+        "postgresql"
+      ],
+      "condition": "生产大表创建或重建普通索引必须评估并优先 CREATE/REINDEX INDEX CONCURRENTLY；该操作不得位于事务块。约束隐式索引等不支持场景单独评审。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "解析 CONCURRENTLY 并检查迁移框架是否包裹事务。"
+      },
+      "examples": {
+        "positive": "create index concurrently idx_order_created on t_order(created_at);",
+        "negative": "begin; create index concurrently ...; commit;"
+      },
+      "remediation": "拆出非事务步骤，监控 invalid index 并准备清理/重试。",
+      "confirmation_required": true
+    },
+    {
+      "id": "POSTGRESQL-PART-001",
+      "source": [
+        "G.TAB.18",
+        "G.TAB.19",
+        "G.UPG.04"
+      ],
+      "name": "PostgreSQL 分区索引按父子结构管理",
+      "level": "mandatory",
+      "gate": "block",
+      "scope": [
+        "partition",
+        "index"
+      ],
+      "dialects": [
+        "postgresql"
+      ],
+      "condition": "PostgreSQL 没有可直接 UPDATE 的全局索引；分区变更必须核对父索引、各子分区索引、attach/detach、裁剪效果和版本限制。",
+      "check": {
+        "kind": "manual",
+        "detector": "核对 pg_partition_tree、pg_index、EXPLAIN 和维护步骤。"
+      },
+      "examples": {
+        "positive": "逐分区建索引后 attach 到父索引并验证裁剪",
+        "negative": "执行不存在的 update global indexes 语法"
+      },
+      "remediation": "按 PostgreSQL 父子分区索引能力重写迁移。",
+      "confirmation_required": true
+    },
+    {
+      "id": "POSTGRESQL-UPD-001",
+      "source": [
+        "G.UPD.03",
+        "G.DEL.02"
+      ],
+      "name": "PostgreSQL 批处理使用稳定键 CTE",
+      "level": "prohibition",
+      "gate": "block",
+      "scope": [
+        "update",
+        "data-fix"
+      ],
+      "dialects": [
+        "postgresql"
+      ],
+      "condition": "不得假设 PostgreSQL 支持 UPDATE ... LIMIT。批处理通过稳定主键 CTE/子查询选择确定行集，使用小事务、锁策略和可恢复进度。",
+      "check": {
+        "kind": "static",
+        "detector": "顶层 UPDATE LIMIT 直接阻断；CTE 批处理仍需另行核对稳定排序和并发锁。"
+      },
+      "examples": {
+        "positive": "with batch as (select id ... order by id limit 1000) update ... from batch",
+        "negative": "update t_order set status=? limit 1000"
+      },
+      "remediation": "使用稳定主键选批的 CTE 并进入数据确认流程。",
+      "confirmation_required": true
+    },
+    {
+      "id": "POSTGRESQL-DBS-002",
+      "source": [
+        "G.DBS.02"
+      ],
+      "name": "PostgreSQL 服务边界使用独立 schema",
+      "level": "mandatory",
+      "gate": "block",
+      "scope": [
+        "dbs"
+      ],
+      "dialects": [
+        "postgresql"
+      ],
+      "condition": "PostgreSQL 数据库内可包含多个 schema；每个服务使用独立 schema，并固定安全的 search_path 与 CREATE 权限。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "按方言语法静态筛查，并结合版本、schema 或执行上下文确认。"
+      },
+      "examples": {
+        "positive": "create schema order_service authorization order_owner",
+        "negative": "多个服务共用 public 且允许不受控 CREATE"
+      },
+      "remediation": "按 PostgreSQL 服务边界使用独立 schema 整改；规范依据见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "POSTGRESQL-TAB-013",
+      "source": [
+        "G.TAB.13"
+      ],
+      "name": "PostgreSQL 表和字段使用 COMMENT ON",
+      "level": "mandatory",
+      "gate": "block",
+      "scope": [
+        "tab"
+      ],
+      "dialects": [
+        "postgresql"
+      ],
+      "condition": "PostgreSQL 使用 COMMENT ON TABLE/COLUMN，并以 IS NULL 删除注释；DDL 与注释迁移必须保持同一版本。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "按方言语法静态筛查，并结合版本、schema 或执行上下文确认。"
+      },
+      "examples": {
+        "positive": "comment on column t_user.id is '主键'",
+        "negative": "在列定义后写 MySQL COMMENT 子句"
+      },
+      "remediation": "按 PostgreSQL 表和字段使用 COMMENT ON 整改；规范依据见 references/dialect-spec-sources.md。",
+      "confirmation_required": true
+    },
+    {
+      "id": "POSTGRESQL-NAM-001",
+      "source": [
+        "G.NAM.01"
+      ],
+      "name": "PostgreSQL 标识符避开 16 关键字与系统对象",
+      "level": "prohibition",
+      "gate": "block",
+      "scope": [
+        "nam"
+      ],
+      "dialects": [
+        "postgresql"
+      ],
+      "condition": "对象名不得与 PostgreSQL 16 reserved keywords、pg_catalog 对象或系统列重名；确需使用时仍应重命名而非依赖双引号。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "按方言语法静态筛查，并结合版本、schema 或执行上下文确认。"
+      },
+      "examples": {
+        "positive": "order_item",
+        "negative": "\"user\" 或 ctid"
+      },
+      "remediation": "按 PostgreSQL 标识符避开 16 关键字与系统对象 整改；规范依据见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "POSTGRESQL-NAM-003",
+      "source": [
+        "G.NAM.03"
+      ],
+      "name": "PostgreSQL 对象名不超过 63 字节",
+      "level": "prohibition",
+      "gate": "block",
+      "scope": [
+        "nam"
+      ],
+      "dialects": [
+        "postgresql"
+      ],
+      "condition": "PostgreSQL 16 默认 NAMEDATALEN=64，只使用标识符前 63 字节；多字节名称必须按字节而非字符计算，并为自动生成后缀留余量。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "按方言语法静态筛查，并结合版本、schema 或执行上下文确认。"
+      },
+      "examples": {
+        "positive": "UTF-8 编码后不超过 63 字节",
+        "negative": "只按字符数检查多字节标识符"
+      },
+      "remediation": "按 PostgreSQL 对象名不超过 63 字节 整改；规范依据见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "POSTGRESQL-SEL-001",
+      "source": [
+        "G.SEL.01"
+      ],
+      "name": "PostgreSQL 核心 SQL 不使用 MySQL hint 语法",
+      "level": "recommendation",
+      "gate": "warn",
+      "scope": [
+        "sel"
+      ],
+      "dialects": [
+        "postgresql"
+      ],
+      "condition": "PostgreSQL 16 核心不实现 MySQL 的 /*+ ... */ 与 USE/FORCE INDEX；通过统计信息、索引和成本参数解决计划问题，扩展 hint 必须单独批准。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "按方言语法静态筛查，并结合版本、schema 或执行上下文确认。"
+      },
+      "examples": {
+        "positive": "通过 ANALYZE 与索引设计修正计划",
+        "negative": "复制 MySQL FORCE INDEX"
+      },
+      "remediation": "按 PostgreSQL 核心 SQL 不使用 MySQL hint 语法 整改；规范依据见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "POSTGRESQL-SEL-005",
+      "source": [
+        "G.SEL.05"
+      ],
+      "name": "PostgreSQL 允许无 FROM 的标量 SELECT",
+      "level": "reference",
+      "gate": "info",
+      "scope": [
+        "sel"
+      ],
+      "dialects": [
+        "postgresql"
+      ],
+      "condition": "PostgreSQL 16 允许 SELECT 1 等无 FROM 查询；不得仅因子查询缺少 FROM 判违规，需按真实 SELECT 语法判断。",
+      "check": {
+        "kind": "manual",
+        "detector": "只核对语法事实，不因缺少 FROM 阻断。"
+      },
+      "examples": {
+        "positive": "select 1",
+        "negative": "虚构必须添加 FROM 的语法要求"
+      },
+      "remediation": "按 PostgreSQL 允许无 FROM 的标量 SELECT 整改；规范依据见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "POSTGRESQL-SEL-008",
+      "source": [
+        "G.SEL.08"
+      ],
+      "name": "评审 PostgreSQL 查询中的笛卡尔积",
+      "level": "recommendation",
+      "gate": "warn",
+      "scope": [
+        "sel"
+      ],
+      "dialects": [
+        "postgresql"
+      ],
+      "condition": "允许 FULL [OUTER] JOIN 表达双侧保留语义，也允许 CROSS JOIN LATERAL 表达相关查询。普通 CROSS JOIN 应核对笛卡尔积是否有意且规模可控。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "提示复核普通 CROSS JOIN 的行数及业务意图。",
+        "review_gate": "warn"
+      },
+      "examples": {
+        "positive": "select a.id, b.id from t_a a full outer join t_b b on a.id = b.id",
+        "negative": "select a.id, b.id from t_a a cross join t_b b，原意是按 id 匹配"
+      },
+      "remediation": "无意的笛卡尔积使用具备实际关联谓词的 JOIN；保留确有业务用途的 FULL JOIN 或相关 LATERAL 查询。",
+      "confirmation_required": false
+    },
+    {
+      "id": "POSTGRESQL-SEL-017",
+      "source": [
+        "G.SEL.17"
+      ],
+      "name": "PostgreSQL 聚合查询不混淆 PL/pgSQL NO_DATA_FOUND",
+      "level": "prohibition",
+      "gate": "block",
+      "scope": [
+        "sel"
+      ],
+      "dialects": [
+        "postgresql"
+      ],
+      "condition": "普通 PostgreSQL 聚合查询不会因空集自动抛出 PL/pgSQL NO_DATA_FOUND；只有 SELECT INTO STRICT 等过程语句具有对应异常语义。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "按方言语法静态筛查，并结合版本、schema 或执行上下文确认。"
+      },
+      "examples": {
+        "positive": "按聚合函数空集语义处理结果",
+        "negative": "假设普通 select max(...) 会抛 no_data_found"
+      },
+      "remediation": "按 PostgreSQL 聚合查询不混淆 PL/pgSQL NO_DATA_FOUND 整改；规范依据见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "POSTGRESQL-SEL-035",
+      "source": [
+        "G.SEL.35"
+      ],
+      "name": "PostgreSQL 不把 ctid 当长期记录标识",
+      "level": "mandatory",
+      "gate": "block",
+      "scope": [
+        "sel"
+      ],
+      "dialects": [
+        "postgresql"
+      ],
+      "condition": "PostgreSQL 16 的 ctid 会在 UPDATE 或 VACUUM FULL 后改变，只能用于受控的瞬时定位，业务身份必须使用主键。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "按方言语法静态筛查，并结合版本、schema 或执行上下文确认。"
+      },
+      "examples": {
+        "positive": "where id=$1",
+        "negative": "持久化或跨事务依赖 ctid"
+      },
+      "remediation": "按 PostgreSQL 不把 ctid 当长期记录标识 整改；规范依据见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "POSTGRESQL-DEL-003",
+      "source": [
+        "G.DEL.03"
+      ],
+      "name": "PostgreSQL DELETE 不支持顶层 ORDER BY/LIMIT",
+      "level": "recommendation",
+      "gate": "warn",
+      "scope": [
+        "del"
+      ],
+      "dialects": [
+        "postgresql"
+      ],
+      "condition": "PostgreSQL 16 DELETE 语法没有顶层 ORDER BY、GROUP BY 或 LIMIT；分批删除应先在 CTE 以稳定键选行，再 DELETE ... USING/子查询。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "按方言语法静态筛查，并结合版本、schema 或执行上下文确认。"
+      },
+      "examples": {
+        "positive": "with batch as (...) delete from t using batch where t.id=batch.id",
+        "negative": "delete from t order by id limit 1000"
+      },
+      "remediation": "按 PostgreSQL DELETE 不支持顶层 ORDER BY/LIMIT 整改；规范依据见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "POSTGRESQL-UPD-002",
+      "source": [
+        "G.UPD.02"
+      ],
+      "name": "PostgreSQL UPDATE 不支持顶层 ORDER BY",
+      "level": "prohibition",
+      "gate": "block",
+      "scope": [
+        "upd"
+      ],
+      "dialects": [
+        "postgresql"
+      ],
+      "condition": "PostgreSQL 16 UPDATE 语法没有顶层 ORDER BY；需要选批时在 CTE/子查询中按稳定键排序。",
+      "check": {
+        "kind": "static",
+        "detector": "由 sql_guard.py 按方言语法解析并阻断。"
+      },
+      "examples": {
+        "positive": "with batch as (...) update t set ... from batch",
+        "negative": "update t set ... order by id"
+      },
+      "remediation": "按 PostgreSQL UPDATE 不支持顶层 ORDER BY 整改；规范依据见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "POSTGRESQL-UPD-005",
+      "source": [
+        "G.UPD.05"
+      ],
+      "name": "PostgreSQL UPDATE 仅有一个目标表",
+      "level": "prohibition",
+      "gate": "block",
+      "scope": [
+        "upd"
+      ],
+      "dialects": [
+        "postgresql"
+      ],
+      "condition": "PostgreSQL 16 UPDATE 可使用 FROM 读取其他表但每条语句只有一个目标表；多目标修改必须拆分并保持事务完整性。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "按方言语法静态筛查，并结合版本、schema 或执行上下文确认。"
+      },
+      "examples": {
+        "positive": "update t1 set ... from t2 where ...",
+        "negative": "假设 UPDATE FROM 会同时修改 t2"
+      },
+      "remediation": "按 PostgreSQL UPDATE 仅有一个目标表 整改；规范依据见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "POSTGRESQL-UPD-006",
+      "source": [
+        "G.UPD.06"
+      ],
+      "name": "PostgreSQL UPDATE 多列赋值基于旧行值",
+      "level": "prohibition",
+      "gate": "block",
+      "scope": [
+        "upd"
+      ],
+      "dialects": [
+        "postgresql"
+      ],
+      "condition": "PostgreSQL 16 SET 表达式按输入行值求值；为跨方言清晰性仍禁止一个被更新列作为另一列更新源。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "按方言语法静态筛查，并结合版本、schema 或执行上下文确认。"
+      },
+      "examples": {
+        "positive": "set a=$1, b=$2",
+        "negative": "set a=a+1, b=a"
+      },
+      "remediation": "按 PostgreSQL UPDATE 多列赋值基于旧行值 整改；规范依据见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "POSTGRESQL-TXN-007",
+      "source": [
+        "G.TXN.07"
+      ],
+      "name": "PostgreSQL prepared transaction 必须经过架构与运维批准",
+      "level": "prohibition",
+      "gate": "block",
+      "scope": [
+        "txn"
+      ],
+      "dialects": [
+        "postgresql"
+      ],
+      "condition": "PostgreSQL 16 的 PREPARE TRANSACTION/COMMIT PREPARED 是两阶段提交基础且依赖 max_prepared_transactions；未经批准禁止使用。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "按方言语法静态筛查，并结合版本、schema 或执行上下文确认。",
+        "review_gate": "warn"
+      },
+      "examples": {
+        "positive": "单库本地事务",
+        "negative": "prepare transaction 'xid'"
+      },
+      "remediation": "按 PostgreSQL prepared transaction 必须经过架构与运维批准 整改；规范依据见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "POSTGRESQL-TXN-008",
+      "source": [
+        "G.TXN.08"
+      ],
+      "name": "PostgreSQL 显式锁需评审锁模式",
+      "level": "recommendation",
+      "gate": "warn",
+      "scope": [
+        "txn"
+      ],
+      "dialects": [
+        "postgresql"
+      ],
+      "condition": "避免无依据使用 LOCK TABLE、SELECT ... FOR UPDATE/SHARE 与 advisory locks；必须评审行锁模式、表锁冲突矩阵及死锁顺序。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "按方言语法静态筛查，并结合版本、schema 或执行上下文确认。"
+      },
+      "examples": {
+        "positive": "短事务且使用最弱足够锁模式",
+        "negative": "无界 lock table ... access exclusive"
+      },
+      "remediation": "按 PostgreSQL 显式锁需评审锁模式 整改；规范依据见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "POSTGRESQL-UPG-002",
+      "source": [
+        "G.UPG.02"
+      ],
+      "name": "PostgreSQL 删除表前按 ALTER TABLE RENAME 观察",
+      "level": "mandatory",
+      "gate": "block",
+      "scope": [
+        "upg"
+      ],
+      "dialects": [
+        "postgresql"
+      ],
+      "condition": "PostgreSQL 16 使用 ALTER TABLE old RENAME TO quarantined；依赖对象按 OID 继续关联，仍需评估名称引用与 search_path。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "按方言语法静态筛查，并结合版本、schema 或执行上下文确认。"
+      },
+      "examples": {
+        "positive": "alter table t_old rename to t_old_quarantine",
+        "negative": "直接 drop table t_old"
+      },
+      "remediation": "按 PostgreSQL 删除表前按 ALTER TABLE RENAME 观察 整改；规范依据见 references/dialect-spec-sources.md。",
+      "confirmation_required": true
+    },
+    {
+      "id": "POSTGRESQL-UPG-005",
+      "source": [
+        "G.UPG.05"
+      ],
+      "name": "PostgreSQL 禁止直接 ALTER COLUMN TYPE",
+      "level": "prohibition",
+      "gate": "block",
+      "scope": [
+        "upg"
+      ],
+      "dialects": [
+        "postgresql"
+      ],
+      "condition": "PostgreSQL 16 通过 ALTER TABLE ... ALTER COLUMN ... TYPE [USING] 改类型，可能重写表并持锁；使用扩展-回填-切换-收缩方案。",
+      "check": {
+        "kind": "static",
+        "detector": "由 sql_guard.py 按方言语法解析并阻断。"
+      },
+      "examples": {
+        "positive": "新增目标列并分批回填",
+        "negative": "alter table t alter column amount type numeric(20,2)"
+      },
+      "remediation": "按 PostgreSQL 禁止直接 ALTER COLUMN TYPE 整改；规范依据见 references/dialect-spec-sources.md。",
+      "confirmation_required": true
+    },
+    {
+      "id": "POSTGRESQL-UPG-007",
+      "source": [
+        "G.UPG.07"
+      ],
+      "name": "PostgreSQL 禁止直接增加 NOT NULL 字段",
+      "level": "prohibition",
+      "gate": "block",
+      "scope": [
+        "upg"
+      ],
+      "dialects": [
+        "postgresql"
+      ],
+      "condition": "PostgreSQL 16 新增无默认值的 NOT NULL 列会因已有行不满足约束而失败；先加可空列、回填、验证再收紧。",
+      "check": {
+        "kind": "static",
+        "detector": "由 sql_guard.py 按方言语法解析并阻断。"
+      },
+      "examples": {
+        "positive": "add column region varchar(32)",
+        "negative": "add column region varchar(32) not null"
+      },
+      "remediation": "按 PostgreSQL 禁止直接增加 NOT NULL 字段 整改；规范依据见 references/dialect-spec-sources.md。",
+      "confirmation_required": true
+    },
+    {
+      "id": "POSTGRESQL-UPG-008",
+      "source": [
+        "G.UPG.08"
+      ],
+      "name": "PostgreSQL 禁止直接 SET NOT NULL",
+      "level": "prohibition",
+      "gate": "block",
+      "scope": [
+        "upg"
+      ],
+      "dialects": [
+        "postgresql"
+      ],
+      "condition": "PostgreSQL 16 使用 ALTER COLUMN ... SET NOT NULL 并检查现有数据；先通过可验证约束与回填方案降低锁风险。",
+      "check": {
+        "kind": "static",
+        "detector": "由 sql_guard.py 按方言语法解析并阻断。"
+      },
+      "examples": {
+        "positive": "回填并验证约束后再收紧",
+        "negative": "alter table t alter column region set not null"
+      },
+      "remediation": "按 PostgreSQL 禁止直接 SET NOT NULL 整改；规范依据见 references/dialect-spec-sources.md。",
+      "confirmation_required": true
+    },
+    {
+      "id": "POSTGRESQL-GTAB-004",
+      "source": [
+        "G.TAB.04"
+      ],
+      "name": "PostgreSQL 16：避免使用外键（禁止）",
+      "level": "prohibition",
+      "gate": "block",
+      "scope": [
+        "tab"
+      ],
+      "dialects": [
+        "postgresql"
+      ],
+      "condition": "PostgreSQL 16 项目治理要求：避免使用外键（禁止） 判定必须使用 PostgreSQL 16 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 MySQL 结论。",
+      "check": {
+        "kind": "static",
+        "detector": "由 sql_guard.py 使用 PostgreSQL 16 lexer/grammar 高置信判定。"
+      },
+      "examples": {
+        "positive": "DDL 不声明 FOREIGN KEY，由应用校验关联",
+        "negative": "constraint fk_order_user foreign key (user_id) references t_user(id)"
+      },
+      "remediation": "按 PostgreSQL 16 官方规范和本规则整改；不得复制 MySQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": true
+    },
+    {
+      "id": "POSTGRESQL-GTAB-016",
+      "source": [
+        "G.TAB.16"
+      ],
+      "name": "PostgreSQL 16：所有表都必须有主键",
+      "level": "mandatory",
+      "gate": "block",
+      "scope": [
+        "tab"
+      ],
+      "dialects": [
+        "postgresql"
+      ],
+      "condition": "PostgreSQL 16 项目治理要求：所有表都必须有主键。可以是单独字段、联合字段。 判定必须使用 PostgreSQL 16 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 MySQL 结论。",
+      "check": {
+        "kind": "static",
+        "detector": "由 sql_guard.py 使用 PostgreSQL 16 lexer/grammar 高置信判定。"
+      },
+      "examples": {
+        "positive": "create table if not exists t_order (id uuid primary key)",
+        "negative": "create table if not exists t_order (id uuid)"
+      },
+      "remediation": "按 PostgreSQL 16 官方规范和本规则整改；不得复制 MySQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": true
+    },
+    {
+      "id": "POSTGRESQL-GSEL-012",
+      "source": [
+        "G.SEL.12"
+      ],
+      "name": "PostgreSQL 16：禁止使用 select *",
+      "level": "prohibition",
+      "gate": "block",
+      "scope": [
+        "sel"
+      ],
+      "dialects": [
+        "postgresql"
+      ],
+      "condition": "PostgreSQL 16 项目治理要求：禁止使用 select *。【例外】表结构稳定，客户端确实需要全部字段且已记录评审依据；表结构变更后需要自适应时可按例外流程使用。 判定必须使用 PostgreSQL 16 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 MySQL 结论。",
+      "check": {
+        "kind": "static",
+        "detector": "由 sql_guard.py 使用 PostgreSQL 16 lexer/grammar 高置信判定。"
+      },
+      "examples": {
+        "positive": "select id, status from t_order",
+        "negative": "select * from t_order"
+      },
+      "remediation": "按 PostgreSQL 16 官方规范和本规则整改；不得复制 MySQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "POSTGRESQL-GINS-001",
+      "source": [
+        "G.INS.01"
+      ],
+      "name": "PostgreSQL 16：使用insert语句时，需要指明插入目标列",
+      "level": "mandatory",
+      "gate": "block",
+      "scope": [
+        "ins"
+      ],
+      "dialects": [
+        "postgresql"
+      ],
+      "condition": "PostgreSQL 16 项目治理要求：使用insert语句时，需要指明插入目标列 判定必须使用 PostgreSQL 16 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 MySQL 结论。",
+      "check": {
+        "kind": "static",
+        "detector": "由 sql_guard.py 使用 PostgreSQL 16 lexer/grammar 高置信判定。"
+      },
+      "examples": {
+        "positive": "insert into t_order (id) values ($1)",
+        "negative": "insert into t_order values ($1)"
+      },
+      "remediation": "按 PostgreSQL 16 官方规范和本规则整改；不得复制 MySQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "POSTGRESQL-GDEL-001",
+      "source": [
+        "G.DEL.01"
+      ],
+      "name": "DELETE 必须包含限定目标行的 WHERE",
+      "level": "mandatory",
+      "gate": "block",
+      "scope": [
+        "del"
+      ],
+      "dialects": [
+        "postgresql"
+      ],
+      "condition": "DELETE 必须包含限定目标行的 WHERE 条件。",
+      "check": {
+        "kind": "static",
+        "detector": "由 sql_guard.py 使用 PostgreSQL 16 lexer/grammar 高置信判定。"
+      },
+      "examples": {
+        "positive": "delete from t_order where id=$1",
+        "negative": "delete from t_order"
+      },
+      "remediation": "按 PostgreSQL 16 官方规范和本规则整改；不得复制 MySQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "POSTGRESQL-DEL-002",
+      "source": [
+        "G.DEL.01"
+      ],
+      "name": "DELETE 过滤优先使用主键或索引",
+      "level": "recommendation",
+      "gate": "warn",
+      "scope": [
+        "del"
+      ],
+      "dialects": [
+        "postgresql"
+      ],
+      "condition": "数据量较大时，优先按主键或索引限定删除范围，并结合执行计划确认访问路径。",
+      "check": {
+        "kind": "manual",
+        "detector": "核对索引定义、执行计划及预估影响行数。"
+      },
+      "examples": {
+        "positive": "delete from t_order where id=$1，id 为主键",
+        "negative": "delete from t_order where status=$1，无可用索引且需要扫描大表"
+      },
+      "remediation": "使用有索引的稳定键分批删除，并复核执行计划。",
+      "confirmation_required": false
+    },
+    {
+      "id": "POSTGRESQL-GUPD-001",
+      "source": [
+        "G.UPD.01"
+      ],
+      "name": "PostgreSQL 16：update语句中必须有where子句",
+      "level": "mandatory",
+      "gate": "block",
+      "scope": [
+        "upd"
+      ],
+      "dialects": [
+        "postgresql"
+      ],
+      "condition": "PostgreSQL 16 项目治理要求：update语句中必须有where子句 判定必须使用 PostgreSQL 16 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 MySQL 结论。",
+      "check": {
+        "kind": "static",
+        "detector": "由 sql_guard.py 使用 PostgreSQL 16 lexer/grammar 高置信判定。"
+      },
+      "examples": {
+        "positive": "update t_order set status=$1 where id=$2",
+        "negative": "update t_order set status=$1"
+      },
+      "remediation": "按 PostgreSQL 16 官方规范和本规则整改；不得复制 MySQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "POSTGRESQL-GTXN-001",
+      "source": [
+        "G.TXN.01"
+      ],
+      "name": "PostgreSQL 16：禁止显式指定事务隔离级别",
+      "level": "prohibition",
+      "gate": "block",
+      "scope": [
+        "txn"
+      ],
+      "dialects": [
+        "postgresql"
+      ],
+      "condition": "PostgreSQL 16 项目治理要求：禁止显式指定事务隔离级别 判定必须使用 PostgreSQL 16 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 MySQL 结论。",
+      "check": {
+        "kind": "static",
+        "detector": "由 sql_guard.py 使用 PostgreSQL 16 lexer/grammar 高置信判定。"
+      },
+      "examples": {
+        "positive": "使用实例与连接池批准的默认隔离级别",
+        "negative": "set transaction isolation level serializable"
+      },
+      "remediation": "按 PostgreSQL 16 官方规范和本规则整改；不得复制 MySQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "POSTGRESQL-GUPG-003",
+      "source": [
+        "G.UPG.03"
+      ],
+      "name": "PostgreSQL 16：禁止drop表字段",
+      "level": "prohibition",
+      "gate": "block",
+      "scope": [
+        "upg"
+      ],
+      "dialects": [
+        "postgresql"
+      ],
+      "condition": "PostgreSQL 16 项目治理要求：禁止drop表字段 判定必须使用 PostgreSQL 16 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 MySQL 结论。",
+      "check": {
+        "kind": "static",
+        "detector": "识别 ALTER TABLE 顶层子命令中的 DROP [COLUMN]；排除索引、键与约束等非列操作。"
+      },
+      "examples": {
+        "positive": "保留旧列并执行扩展-迁移-收缩",
+        "negative": "alter table t_order drop column if exists legacy_code"
+      },
+      "remediation": "按 PostgreSQL 16 官方规范和本规则整改；不得复制 MySQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": true
+    },
+    {
+      "id": "POSTGRESQL-GUPG-010",
+      "source": [
+        "G.UPG.10"
+      ],
+      "name": "PostgreSQL 16：create表时必须有if not exist子句",
+      "level": "mandatory",
+      "gate": "block",
+      "scope": [
+        "upg"
+      ],
+      "dialects": [
+        "postgresql"
+      ],
+      "condition": "PostgreSQL 16 项目治理要求：create表时必须有if not exist子句 判定必须使用 PostgreSQL 16 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 MySQL 结论。",
+      "check": {
+        "kind": "static",
+        "detector": "由 sql_guard.py 使用 PostgreSQL 16 lexer/grammar 高置信判定。"
+      },
+      "examples": {
+        "positive": "create table if not exists t_order (id bigint primary key)",
+        "negative": "create table t_order (id bigint primary key)"
+      },
+      "remediation": "按 PostgreSQL 16 官方规范和本规则整改；不得复制 MySQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": true
+    },
+    {
+      "id": "POSTGRESQL-GUPG-011",
+      "source": [
+        "G.UPG.11"
+      ],
+      "name": "PostgreSQL 16：drop表时必须有if exist子句",
+      "level": "mandatory",
+      "gate": "block",
+      "scope": [
+        "upg"
+      ],
+      "dialects": [
+        "postgresql"
+      ],
+      "condition": "PostgreSQL 16 项目治理要求：drop表时必须有if exist子句 判定必须使用 PostgreSQL 16 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 MySQL 结论。",
+      "check": {
+        "kind": "static",
+        "detector": "由 sql_guard.py 使用 PostgreSQL 16 lexer/grammar 高置信判定。"
+      },
+      "examples": {
+        "positive": "drop table if exists t_order",
+        "negative": "drop table t_order"
+      },
+      "remediation": "按 PostgreSQL 16 官方规范和本规则整改；不得复制 MySQL 语法。规范入口见 references/dialect-spec-sources.md。",
+      "confirmation_required": true
+    }
+  ]
+}

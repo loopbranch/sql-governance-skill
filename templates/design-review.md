@@ -4,6 +4,7 @@
 
 - 方案/任务：`<名称或链接>`
 - 数据库与版本：`<如 MySQL 5.7>`
+- 方言判定证据：`<项目配置/驱动/DDL 特征；mysql | postgresql>`
 - SQL 对象：`<表/字段/索引/DML/事务等>`
 - 检查范围：`<文件、片段或方案章节>`
 - 结构性/高风险变更：`是 | 否`
@@ -12,6 +13,7 @@
 ## 结论
 
 - 门禁结论：`Block | Warn | Info | Pass`
+- 已加载规则：`common + mysql | common + postgresql | common only (dialect-required)`
 - 统计：`Block <n> / Warn <n> / Info <n>`
 - 摘要：`<一段话>`
 

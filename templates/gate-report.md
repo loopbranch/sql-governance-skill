@@ -7,6 +7,8 @@
 - 检查文件：`<数量与路径>`
 - SQL 入口：`<.sql / migration / ORM / inline SQL>`
 - 规则版本：`<tag + commit>`
+- 方言与版本：`<mysql/postgresql + version；逐文件证据>`
+- 已加载规则：`<common.json + mysql.json/postgresql.json>`
 
 ## 门禁结论
 
