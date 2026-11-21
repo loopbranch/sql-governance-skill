@@ -19,13 +19,9 @@ LEVEL_TERMS = {
 }
 
 STATIC_IDS = {
-    "G.TAB.04", "G.TAB.05", "G.TAB.09", "G.TAB.10", "G.TAB.13", "G.TAB.16",
-    "G.IDX.08", "G.IDX.09", "G.IDX.10", "G.IDX.11", "G.FMT.02", "G.FMT.05",
-    "G.FMT.07", "G.NAM.02", "G.NAM.03", "G.NAM.09", "G.CMT.08", "G.CMT.09",
-    "G.SEL.08", "G.SEL.12", "G.SEL.21", "G.SEL.25", "G.SEL.31", "G.INS.01",
-    "G.DEL.01", "G.UPD.01", "G.UPD.02", "G.UPD.03", "G.UPD.05", "G.TXN.01",
-    "G.TXN.03", "G.TXN.07", "G.UPG.03", "G.UPG.05", "G.UPG.06", "G.UPG.07",
-    "G.UPG.08", "G.UPG.10", "G.UPG.11", "G.KOO.04", "G.KOO.06",
+    "G.DEL.01", "G.INS.01", "G.SEL.08", "G.SEL.12", "G.TAB.04", "G.TAB.16",
+    "G.TXN.01", "G.TXN.07", "G.UPD.01", "G.UPD.02", "G.UPD.03", "G.UPG.03",
+    "G.UPG.05", "G.UPG.07", "G.UPG.08", "G.UPG.10", "G.UPG.11",
 }
 
 MANUAL_PREFIXES = {"DBS", "CLI", "SEC", "KOO"}
@@ -79,6 +75,55 @@ NAME_OVERRIDES = {
     "G.KOO.07": "加密数据必须验证授权解密路径",
     "G.KOO.09": "表设计必须执行批准的数据模型规范检查",
 }
+
+STATIC_EXAMPLES = {
+    "G.DEL.01": ("delete from t_order where id = ?", "delete from t_order"),
+    "G.INS.01": ("insert into t_order (id, status) values (?, ?)", "insert into t_order values (?, ?)"),
+    "G.SEL.08": ("select a.id from t_a a inner join t_b b on b.id = a.id", "select a.id from t_a a full outer join t_b b on b.id = a.id"),
+    "G.SEL.12": ("select id, status from t_order", "select * from t_order"),
+    "G.TAB.04": ("通过应用校验关联关系，DDL 不声明外键", "constraint fk_order_user foreign key (user_id) references t_user(id)"),
+    "G.TAB.16": ("create table ... (id uuid primary key, ...)", "create table ... (name varchar(64))"),
+    "G.TXN.01": ("使用项目统一的默认隔离级别", "set transaction isolation level serializable"),
+    "G.TXN.07": ("单库本地事务或已批准的最终一致性方案", "xa start 'order-and-stock'"),
+    "G.UPD.01": ("update t_order set status = ? where id = ?", "update t_order set status = ?"),
+    "G.UPD.02": ("按稳定主键范围执行 update", "update t_order set status = ? where tenant_id = ? order by id"),
+    "G.UPD.03": ("按 id 范围选定批次后更新", "update t_order set status = ? where status = ? limit 1000"),
+    "G.UPG.03": ("保留旧字段并采用扩展-迁移-收缩方案", "alter table t_order drop column legacy_code"),
+    "G.UPG.05": ("新增目标类型字段并迁移验证", "alter table t_order alter column amount type numeric(20,2)"),
+    "G.UPG.07": ("先增加可空字段并分批回填", "alter table t_order add column region_code varchar(32) not null"),
+    "G.UPG.08": ("保持字段可空或采用替代表迁移方案", "alter table t_order alter column region_code set not null"),
+    "G.UPG.10": ("create table if not exists t_order (...) ", "create table t_order (...)") ,
+    "G.UPG.11": ("drop table if exists t_order", "drop table t_order"),
+}
+
+EVIDENCE_CONTEXT = {
+    "DBS": "实例、连接与部署配置",
+    "TAB": "DDL、数据模型与容量评审记录",
+    "IDX": "索引 DDL、数据分布和 EXPLAIN",
+    "FMT": "格式化后的 SQL 文件",
+    "NAM": "schema 对象和代码标识符清单",
+    "CMT": "SQL 文件头及对象注释",
+    "SEL": "查询 SQL、参数和执行计划",
+    "INS": "写入 SQL 与批处理设计",
+    "DEL": "删除 SQL、影响行数和恢复方案",
+    "UPD": "更新 SQL、稳定键和影响行数",
+    "CLI": "数据库访问代码、资源生命周期和异常路径",
+    "TXN": "事务边界、锁和失败恢复流程",
+    "UPG": "迁移脚本、演练、备份和回滚记录",
+    "SEC": "账号、传输和权限配置",
+    "KOO": "版本归档、问题单和流水线产物",
+}
+
+
+def examples_for(clause_id: str, prefix: str, condition: str) -> dict[str, str]:
+    if clause_id in STATIC_EXAMPLES:
+        positive, negative = STATIC_EXAMPLES[clause_id]
+        return {"positive": positive, "negative": negative}
+    context = EVIDENCE_CONTEXT[prefix]
+    return {
+        "positive": f"合规证据示例：{context}能够证明“{condition}”。",
+        "negative": f"不合规场景：{context}缺失，或其内容表明未满足“{condition}”。",
+    }
 
 
 def clean(value: str) -> str:
@@ -134,8 +179,8 @@ def parse_clauses(markdown: str) -> list[dict[str, object]]:
         for clause_id in expand_id(match.group(2)):
             prefix = clause_id.split(".")[1]
             name = NAME_OVERRIDES.get(clause_id) or title or clause_id
-            # Severity follows the source clause wording, not the portable display name.
-            level = level_for(clause_id, title or name)
+            # Severity follows the complete source clause, not the portable display name.
+            level = level_for(clause_id, " ".join([title, *prose]) or name)
             condition = PORTABLE_OVERRIDES.get(clause_id) or name
             if prose and clause_id not in PORTABLE_OVERRIDES:
                 condition = f"{condition}。{' '.join(prose)}"[:700]
@@ -155,10 +200,7 @@ def parse_clauses(markdown: str) -> list[dict[str, object]]:
                                 "静态筛查候选项，并结合 schema、执行计划或业务语义确认。" if kind == "hybrid" else
                                 "核对设计、运行数据、审批或运维证据。",
                 },
-                "examples": {
-                    "positive": f"满足“{name}”并保留可核验证据。",
-                    "negative": f"违反“{name}”或缺少所需证据。",
-                },
+                "examples": examples_for(clause_id, prefix, condition),
                 "remediation": f"按“{name}”整改；涉及方言语法时同时应用对应方言规则。",
                 "confirmation_required": prefix in CONFIRM_PREFIXES or clause_id in CONFIRM_IDS,
             })

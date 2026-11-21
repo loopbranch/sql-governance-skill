@@ -9,7 +9,7 @@
 
 ## 判定能力
 
-- `static`：仅凭当前代码/SQL 可稳定判定，可直接用于自动门禁。
+- `static`：仅凭当前代码/SQL 可稳定判定，且已由仓库静态门禁实现；实际自动覆盖清单见 `rules/README.md` 和 JSON 输出的 `checked_rules`。
 - `manual`：依赖业务语义、数据规模、运行时统计、审批或执行窗口；必须列出所需证据。
 - `hybrid`：静态发现候选问题，再由 schema、EXPLAIN、业务上下文或批准记录定论。
 

@@ -23,6 +23,11 @@ EXPECTED_SOURCE_DOMAINS = {
     "CMT": 10, "SEL": 35, "INS": 3, "DEL": 3, "UPD": 7,
     "CLI": 5, "TXN": 8, "UPG": 13, "SEC": 3, "KOO": 9,
 }
+EXPECTED_STATIC_IDS = {
+    "G.DEL.01", "G.INS.01", "G.SEL.08", "G.SEL.12", "G.TAB.04", "G.TAB.16",
+    "G.TXN.01", "G.TXN.07", "G.UPD.01", "G.UPD.02", "G.UPD.03", "G.UPG.03",
+    "G.UPG.05", "G.UPG.07", "G.UPG.08", "G.UPG.10", "G.UPG.11",
+}
 REQUIRED = {"id", "source", "name", "level", "gate", "scope", "dialects", "condition", "check", "examples", "remediation", "confirmation_required"}
 
 
@@ -102,6 +107,9 @@ def main() -> int:
     source_domains = Counter(rule_id.split(".")[1] for rule_id in common_ids)
     if dict(source_domains) != EXPECTED_SOURCE_DOMAINS:
         fail(f"common catalog domain coverage mismatch: {dict(source_domains)}")
+    static_ids = {rule["id"] for rule in files["common"]["rules"] if rule["check"]["kind"] == "static"}
+    if static_ids != EXPECTED_STATIC_IDS:
+        fail(f"common static coverage must match sql_guard implementation: {sorted(static_ids)}")
     for dialect in VALID_DIALECTS:
         if not files[dialect]["rules"]:
             fail(f"{dialect}: dialect catalog must not be empty")

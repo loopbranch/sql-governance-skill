@@ -43,7 +43,7 @@ python3 scripts/sql_guard.py --dialect postgresql path/to/postgresql-change.sql
 python3 /path/to/skill-creator/scripts/quick_validate.py .
 ```
 
-`sql_guard.py` 对高置信禁止项返回退出码 `1`，输入、读取或方言不明确返回 `2`，通过返回 `0`；支持 `--format json`。`--dialect auto` 只在证据单一时推断，无法确定时阻断结论。脚本只覆盖无需 live schema 即可稳定判断的规则，人工和混合规则仍按 `SKILL.md` 检视。
+`sql_guard.py` 对已实现的高置信禁止项返回退出码 `1`，输入、读取或方言不明确返回 `2`，通过返回 `0`；支持 `--format json`，并通过 `checked_rules` 明确本次自动覆盖范围。`--dialect auto` 只在证据单一时推断，无法确定时阻断结论。脚本通过不代表 170 条规则全部通过，人工和混合规则仍按 `SKILL.md` 检视。
 
 ## 主工程引入
 

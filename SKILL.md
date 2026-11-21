@@ -34,8 +34,8 @@ metadata:
 2. 禁止对 PostgreSQL 应用 MySQL 的 `utf8mb4`、InnoDB、前缀索引或 `BINARY(16)` 要求；禁止对 MySQL 应用 PostgreSQL 的 `uuid`、`CONCURRENTLY`、GIN/GiST、父子分区索引要求。
 3. 需要解释层级、自动化能力或例外时，读取 [references/severity-model.md](references/severity-model.md)。
 4. 只加载与本次 SQL 对象和阶段相关的规则；不要因未检查无关领域而声称全量合规。
-5. `check.kind=static` 的规则可自动判定；`manual` 必须收集证据；`hybrid` 先做静态筛查，再确认上下文。
-6. 对 SQL 文件运行 `python3 scripts/sql_guard.py --dialect <mysql|postgresql> <files...>`。退出码 `1` 为 Block，`2` 为输入或方言错误；静态脚本通过不代表 manual/hybrid 规则通过。
+5. `check.kind=static` 表示本仓库 `sql_guard.py` 已实现高置信自动判定；`manual` 必须收集证据；`hybrid` 先做静态筛查，再确认上下文。具体自动覆盖 ID 以 [rules/README.md](rules/README.md) 为准。
+6. 对 SQL 文件运行 `python3 scripts/sql_guard.py --dialect <mysql|postgresql> <files...>`。退出码 `1` 为已实现规则命中 Block，`2` 为输入或方言错误；`--format json` 的 `checked_rules` 是本次自动检查集合。脚本通过只表示该集合未命中，不代表其余规则通过。
 
 ## 场景一：方案生成、编码与方案分析
 

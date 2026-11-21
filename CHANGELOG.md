@@ -23,6 +23,13 @@
 - 修复字符串内 `where`、CTE `select *`、字段类型修改及新增 NOT NULL 字段等漏检。
 - 这是门禁语义破坏性升级，消费方必须通过显式 submodule PR 升级。
 
+### Fixed
+
+- SQL 门禁只按顶层主语句识别 DML，避免 `FOR UPDATE`、列属性和 CTE 子查询误报。
+- 覆盖 PostgreSQL `FULL OUTER JOIN`、`ALTER COLUMN`、表级 serial/identity 主键、临时表和 CTE INSERT。
+- 按方言处理 `#`，检查所有 MySQL 字符集声明，并将 PostgreSQL 并发索引保留为上下文相关的 hybrid 规则。
+- 公共规则严重级别读取完整条款，正反例改为可执行 SQL 或具体证据场景；`static` 与脚本实际覆盖保持一致。
+
 ## [1.0.0] - 2026-11-21
 
 ### Added

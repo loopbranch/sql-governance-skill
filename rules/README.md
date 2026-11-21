@@ -23,6 +23,16 @@
 - `remediation`：整改建议；
 - `confirmation_required`：是否必须进入开发者确认流程。
 
+## 自动门禁覆盖
+
+`check.kind=static` 只用于 `scripts/sql_guard.py` 已实现且无需 live schema 即可高置信判定的公共规则：
+
+`G.DEL.01`、`G.INS.01`、`G.SEL.08`、`G.SEL.12`、`G.TAB.04`、`G.TAB.16`、`G.TXN.01`、`G.TXN.07`、`G.UPD.01`、`G.UPD.02`、`G.UPD.03`、`G.UPG.03`、`G.UPG.05`、`G.UPG.07`、`G.UPG.08`、`G.UPG.10`、`G.UPG.11`。
+
+方言文件中，MySQL 自动覆盖 `MYSQL-ENC-001`、`MYSQL-PK-001`、`MYSQL-TAB-001` 的高置信语法分支；PostgreSQL 自动覆盖 `POSTGRESQL-PK-001`、`POSTGRESQL-TAB-001`。其中编码、表实现等规则整体仍为 hybrid，因为缺省配置和运行环境需要人工证据。`POSTGRESQL-DDL-001` 依赖生产环境、表规模和迁移事务配置，不因缺少 `CONCURRENTLY` 被脚本直接阻断。
+
+JSON 输出中的 `checked_rules` 明确列出本次自动检查集合。退出码 `0` 只代表该集合未命中，并非 170 条规则全部通过。
+
 ## 维护规则
 
 1. 规则变更通过 PR，不直接改消费方 submodule 内文件。
