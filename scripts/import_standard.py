@@ -22,23 +22,52 @@ LEVEL_TERMS = {
 STATIC_IDS: set[str] = set()
 
 COMMON_SOURCE_IDS = {
-    "G.DBS.04", "G.TAB.02",
-    "G.FMT.02", "G.FMT.03", "G.FMT.07", "G.FMT.12",
-    "G.NAM.04", "G.NAM.05", "G.NAM.06",
-    "G.CMT.01", "G.CMT.02", "G.CMT.04", "G.CMT.05", "G.CMT.08",
-    "G.CMT.09", "G.CMT.10",
+    "G.CLI.01", "G.CLI.02", "G.CLI.03", "G.CLI.04", "G.CLI.05",
+    "G.CMT.01", "G.CMT.02", "G.CMT.03", "G.CMT.04", "G.CMT.05",
+    "G.CMT.06", "G.CMT.07", "G.CMT.08", "G.CMT.09", "G.CMT.10",
+    "G.DBS.03", "G.DBS.04", "G.DBS.06",
+    "G.FMT.01", "G.FMT.02", "G.FMT.03", "G.FMT.04", "G.FMT.05",
+    "G.FMT.06", "G.FMT.07", "G.FMT.08", "G.FMT.09", "G.FMT.10",
+    "G.FMT.11", "G.FMT.12", "G.FMT.13",
+    "G.IDX.01", "G.IDX.02", "G.IDX.03", "G.IDX.04", "G.IDX.05",
+    "G.IDX.08", "G.IDX.09", "G.IDX.10",
+    "G.INS.02", "G.INS.03",
     "G.KOO.01", "G.KOO.02", "G.KOO.03", "G.KOO.04", "G.KOO.05",
-    "G.KOO.07", "G.KOO.08", "G.KOO.09",
+    "G.KOO.06", "G.KOO.07", "G.KOO.08", "G.KOO.09",
+    "G.NAM.02", "G.NAM.04", "G.NAM.05", "G.NAM.06", "G.NAM.07",
+    "G.NAM.08", "G.NAM.09",
+    "G.SEC.01", "G.SEC.02", "G.SEC.03",
+    "G.SEL.02", "G.SEL.03", "G.SEL.04", "G.SEL.06", "G.SEL.07",
+    "G.SEL.09", "G.SEL.10", "G.SEL.11", "G.SEL.13", "G.SEL.14",
+    "G.SEL.15", "G.SEL.16", "G.SEL.18", "G.SEL.19", "G.SEL.20",
+    "G.SEL.21", "G.SEL.22", "G.SEL.23", "G.SEL.24", "G.SEL.25",
+    "G.SEL.26", "G.SEL.27", "G.SEL.28", "G.SEL.29", "G.SEL.30",
+    "G.SEL.31", "G.SEL.32", "G.SEL.33", "G.SEL.34",
+    "G.TAB.02", "G.TAB.03", "G.TAB.06", "G.TAB.07", "G.TAB.08",
+    "G.TAB.09", "G.TAB.10", "G.TAB.11", "G.TAB.12", "G.TAB.14",
+    "G.TAB.17",
+    "G.TXN.02", "G.TXN.03", "G.TXN.04", "G.TXN.05", "G.TXN.06",
+    "G.UPD.04", "G.UPD.07",
+    "G.UPG.01", "G.UPG.06", "G.UPG.09",
 }
 
 MANUAL_PREFIXES = {"DBS", "CLI", "SEC", "KOO"}
 CONFIRM_PREFIXES = {"TAB", "IDX", "UPG"}
 CONFIRM_IDS = {"G.DEL.02", "G.UPG.09"}
 REFERENCE_IDS = {"G.FMT.08"}
-RECOMMENDATION_IDS = {"G.IDX.09", "G.IDX.10"}
+RECOMMENDATION_IDS = {
+    "G.FMT.02", "G.FMT.03", "G.FMT.07", "G.IDX.09", "G.IDX.10", "G.NAM.05",
+}
 MANDATORY_IDS = {"G.DEL.01"}
 
 PORTABLE_OVERRIDES = {
+    "G.SEC.01": "按项目的数据分类要求识别敏感字段，并通过批准的加密机制保护存储数据。",
+    "G.FMT.02": "建议每行至多一条 SQL 语句，以便独立审阅和定位错误。",
+    "G.FMT.03": "建议在相对独立的 SQL 程序块之间留空行。",
+    "G.FMT.07": "建议使用 4 个空格缩进，避免混用制表符。",
+    "G.NAM.05": "建议避免无意义的数字；允许表达版本或业务含义的数字，例如 t_order_v2。",
+    "G.SEL.21": "使用 IS NULL 或 IS NOT NULL 判断空值，不能使用 = NULL 或 <> NULL。",
+    "G.SEL.25": "禁止对关联或过滤字段直接套用函数或表达式；优先改写为原列上的等值或范围谓词。",
     "G.DBS.01": "客户端与服务端必须统一使用目标数据库支持的 Unicode 编码；具体编码由方言规则给出。",
     "G.DBS.04": "单个数据库实例不得超过项目批准的容量预算；必须结合托管平台上限、备份恢复时间和扩容策略评审。",
     "G.DBS.05": "实例、数据库、表和字段的排序规则必须统一管理；需要二进制或语言排序时单独评审。",
@@ -87,7 +116,15 @@ NAME_OVERRIDES = {
     "G.SEL.15": "按空值语义选择 count(*) 或 count(列名)",
 }
 
-STATIC_EXAMPLES = {
+RULE_EXAMPLES = {
+    "G.FMT.02": ("每条 SELECT 各占一行", "select 1; select 2; 写在同一行"),
+    "G.FMT.03": ("建表与初始化数据之间留空行", "多个独立迁移步骤连续成块，难以区分"),
+    "G.FMT.07": ("子查询使用 4 个空格缩进", "同一文件混用制表符与空格缩进"),
+    "G.NAM.05": ("t_order_v2 表示第二版订单模型", "t_order_73 中的 73 无业务含义"),
+    "G.TAB.09": ("amount decimal(19,4) not null", "amount double precision not null"),
+    "G.SEL.15": ("select count(*) from t_order", "用 select count(shipped_at) from t_order 统计总行数，漏计未发货订单"),
+    "G.SEL.21": ("select id from t_order where shipped_at is null", "select id from t_order where shipped_at = null"),
+    "G.SEL.25": ("where created_at >= '2026-11-21 00:00:00' and created_at < '2026-11-22 00:00:00'", "where date(created_at) = '2026-11-21'"),
     "G.DEL.01": ("delete from t_order where id = ?", "delete from t_order"),
     "G.INS.01": ("insert into t_order (id, status) values (?, ?)", "insert into t_order values (?, ?)"),
     "G.SEL.08": ("select a.id from t_a a inner join t_b b on b.id = a.id", "select a.id from t_a a full outer join t_b b on b.id = a.id"),
@@ -127,8 +164,8 @@ EVIDENCE_CONTEXT = {
 
 
 def examples_for(clause_id: str, prefix: str, condition: str) -> dict[str, str]:
-    if clause_id in STATIC_EXAMPLES:
-        positive, negative = STATIC_EXAMPLES[clause_id]
+    if clause_id in RULE_EXAMPLES:
+        positive, negative = RULE_EXAMPLES[clause_id]
         return {"positive": positive, "negative": negative}
     context = EVIDENCE_CONTEXT[prefix]
     return {
@@ -188,6 +225,8 @@ def parse_clauses(markdown: str) -> list[dict[str, object]]:
         body = markdown[match.end():body_end]
         prose = []
         for line in body.splitlines():
+            if re.match(r"^#{1,4}\s", line):
+                break
             stripped = clean(line)
             if not stripped or line.lstrip().startswith(("|", "```", "* ", "- ")):
                 continue
@@ -236,7 +275,7 @@ def main() -> int:
     payload = {
         "schema_version": "2.0.0",
         "dialect": "common",
-        "description": "Dialect-independent organization, text-format and release-process rules; apply with exactly one dialect catalog.",
+        "description": "Shared SQL governance policies; apply with exactly one dialect catalog.",
         "rules": clauses,
     }
     args.output.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

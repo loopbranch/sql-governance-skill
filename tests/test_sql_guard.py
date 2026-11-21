@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import importlib.util
+import json
+import subprocess
 import sys
 import unittest
 from pathlib import Path
@@ -53,13 +55,13 @@ class SqlGuardTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             sql_guard.inspect("portable.sql", "select id from t_user where id=?;", "auto")
 
-    def test_full_join_is_blocked_for_both_dialects(self) -> None:
+    def test_full_join_is_allowed_only_in_postgresql(self) -> None:
         for sql in (
             "select a.id from t_a a full join t_b b on b.id=a.id;",
             "select a.id from t_a a full outer join t_b b on b.id=a.id;",
         ):
             self.assertIn("MYSQL-SEL-008", self.rule_ids(sql, "mysql"))
-            self.assertIn("POSTGRESQL-SEL-008", self.rule_ids(sql, "postgresql"))
+            self.assertNotIn("POSTGRESQL-SEL-008", self.rule_ids(sql, "postgresql"))
 
     def test_update_word_outside_main_dml_is_not_misclassified(self) -> None:
         sql = "select id from t_user where id=1 for update;"
@@ -166,22 +168,74 @@ class SqlGuardTest(unittest.TestCase):
         for sql, expected in cases.items():
             self.assertIn(expected, self.rule_ids(sql, "postgresql"))
 
-    def test_uuid_primary_key_storage_is_dialect_specific(self) -> None:
-        mysql = "create table if not exists t_user (id char(36) primary key) engine=InnoDB default charset=utf8mb4;"
-        self.assertIn("MYSQL-PK-001", self.rule_ids(mysql, "mysql"))
-        for definition in ("id char(36) primary key", "id binary(16) primary key", "id bytea primary key"):
-            sql = f"create table if not exists t_user ({definition});"
-            self.assertIn("POSTGRESQL-PK-001", self.rule_ids(sql, "postgresql"))
+    def test_possible_uuid_primary_keys_require_semantic_review(self) -> None:
+        for dialect, types in (
+            ("mysql", ("char(32)", "char(36)", "varchar(40)", "binary(8)")),
+            ("postgresql", ("char(36)", "binary(16)", "bytea", "text", "varchar", "varchar(40)")),
+        ):
+            for data_type in types:
+                with self.subTest(dialect=dialect, data_type=data_type):
+                    sql = f"create table if not exists t_key (business_code {data_type}, scope_id int, primary key (scope_id, business_code));"
+                    _, findings = sql_guard.inspect("key.sql", sql, dialect)
+                    self.assertEqual([(f"{dialect.upper()}-PK-001", "warn")],
+                                     [(finding.rule_id, finding.gate) for finding in findings])
+        sql = 'create table if not exists t_key ("order-code" text, primary key ("order-code"));'
+        self.assertIn("POSTGRESQL-PK-001", self.rule_ids(sql, "postgresql"))
 
     def test_weak_identifier_names_do_not_decide_auto_dialect(self) -> None:
-        with self.assertRaises(ValueError):
-            sql_guard.inspect("weak.sql", "select jsonb from t_user where id=?;", "auto")
+        for sql in (
+            "select jsonb from t_user where id=?;",
+            "select id from t_user where id in (select jsonb from t_meta);",
+            "select returning, concurrently, auto_increment from t_user;",
+        ):
+            with self.subTest(sql=sql), self.assertRaises(ValueError):
+                sql_guard.inspect("weak.sql", sql, "auto")
         dialect, _ = sql_guard.inspect(
             "postgres.sql",
             "create table if not exists t_user (id uuid primary key, unsigned text);",
             "auto",
         )
         self.assertEqual("postgresql", dialect)
+
+    def test_mysql_drop_column_without_column_keyword(self) -> None:
+        for action in ("drop legacy_code", "drop `index`", "drop key idx, drop legacy_code"):
+            self.assertIn("MYSQL-GUPG-003", self.rule_ids(f"alter table app.t {action};", "mysql"))
+        for action in ("drop key idx", "drop foreign key fk", "drop partition p1", "alter column c drop default"):
+            self.assertNotIn("MYSQL-GUPG-003", self.rule_ids(f"alter table app.t {action};", "mysql"))
+
+    def test_postgresql_join_screening_preserves_lateral_queries(self) -> None:
+        lateral = "select a.id, b.id from t_a a cross join lateral (select id from t_b where a.id=t_b.id) b;"
+        self.assertEqual(set(), self.rule_ids(lateral, "postgresql"))
+        _, findings = sql_guard.inspect("query.sql", "select a.id from t_a a cross join t_b b;", "postgresql")
+        self.assertEqual([("POSTGRESQL-SEL-008", "warn")], [(item.rule_id, item.gate) for item in findings])
+
+    def test_mysql_no_backslash_escapes_keeps_later_statements(self) -> None:
+        sql = "select 'a\\'; select * from t_user;"
+        _, findings = sql_guard.inspect("query.sql", sql, "mysql", mysql_no_backslash_escapes=True)
+        self.assertEqual(["MYSQL-GSEL-012"], [item.rule_id for item in findings])
+
+    def test_cli_hybrid_warnings_do_not_block_or_count_as_static_checks(self) -> None:
+        cases = {
+            "mysql": ("create table if not exists t_user (id int primary key) engine=MyISAM default charset=latin1; xa start 'x';",
+                      {"MYSQL-TAB-001", "MYSQL-ENC-001", "MYSQL-TXN-007"}),
+            "postgresql": ("prepare transaction 'x';", {"POSTGRESQL-TXN-007"}),
+        }
+        for dialect, (sql, expected) in cases.items():
+            for statement, code in ((sql, 0), (sql + " delete from t_user;", 1)):
+                run = subprocess.run(
+                    [sys.executable, str(MODULE_PATH), "--dialect", dialect, "--format", "json", "-"],
+                    input=statement, text=True, capture_output=True, check=False,
+                )
+                self.assertEqual(code, run.returncode, run.stderr)
+                output = json.loads(run.stdout)
+                self.assertEqual("fail" if code else "pass", output["result"])
+                self.assertEqual(expected, {f["rule_id"] for f in output["findings"] if f["gate"] == "warn"})
+                self.assertTrue(expected <= set(output["screened_rules"]))
+                self.assertTrue(expected.isdisjoint(output["checked_rules"]))
+                if code:
+                    self.assertIn(self.split_id(dialect, "G.DEL.01"), {
+                        f["rule_id"] for f in output["findings"] if f["gate"] == "block"
+                    })
 
     def test_findings_never_use_the_other_dialect_rule_ids(self) -> None:
         mysql_sql = "create table t_user (id bigint auto_increment primary key); select * from t_user;"

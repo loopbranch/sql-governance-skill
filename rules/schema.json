@@ -26,7 +26,7 @@
         "condition": {"type": "string", "minLength": 1},
         "check": {
           "type": "object", "required": ["kind", "detector"],
-          "properties": {"kind": {"enum": ["static", "manual", "hybrid"]}, "detector": {"type": "string", "minLength": 1}},
+          "properties": {"kind": {"enum": ["static", "manual", "hybrid"]}, "detector": {"type": "string", "minLength": 1}, "review_gate": {"const": "warn"}},
           "additionalProperties": false
         },
         "examples": {

@@ -45,7 +45,7 @@ python3 scripts/sql_guard.py --dialect postgresql path/to/postgresql-change.sql
 python3 /path/to/skill-creator/scripts/quick_validate.py .
 ```
 
-`sql_guard.py` 对已实现的高置信禁止项返回退出码 `1`，输入、读取或方言不明确返回 `2`，通过返回 `0`；支持 `--format json`，并通过 `checked_rules` 明确本次自动覆盖范围。`--dialect auto` 只在强语法证据单一时推断，裸标识符不作为定论；无法确定时阻断结论。脚本通过不代表全部规则通过，人工和混合规则仍按 `SKILL.md` 检视。
+`sql_guard.py` 命中 Block 返回 `1`，输入、读取或方言错误返回 `2`，仅命中 Warn 或完全通过时返回 `0`。`--format json` 的 `checked_rules` 列出静态规则，`screened_rules` 列出带自动分支的混合规则。混合规则的业务语义和审批证据按 `SKILL.md` 复核。`--dialect auto` 根据明确语法推断，无法确定时要求显式选择。MySQL 文件使用 `NO_BACKSLASH_ESCAPES` 模式时，传入 `--mysql-no-backslash-escapes`。
 
 ## 主工程引入
 
@@ -69,4 +69,4 @@ git submodule update --init --recursive
 
 - 本仓库不执行生产 SQL，也不代替数据库变更审批系统。
 - 开发者“确认”只允许继续处理准确描述的方案，不豁免 Block，不等于批准生产执行。
-- 每个方言加载路径恰好覆盖附件全部 154 个编号条款。穷举审计后仅 24 条纯组织/文本/归档规则保留在 `common.json`，其余 130 条源条款在 `mysql.json` 与 `postgresql.json` 成对维护。事实依据见 [方言规范依据](references/dialect-spec-sources.md)，逐条结论见 [隔离审计](references/dialect-isolation-audit.md)。
+- 每个方言加载路径恰好覆盖附件全部 154 个编号条款。110 条共同政策保存在 `common.json`，其余 44 个源条款按方言维护。事实依据见 [方言规范依据](references/dialect-spec-sources.md)，逐条结论见 [隔离审计](references/dialect-isolation-audit.md)。

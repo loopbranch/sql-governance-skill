@@ -25,13 +25,9 @@
 
 ## 自动门禁覆盖
 
-`check.kind=static` 只用于 `scripts/sql_guard.py` 已实现且无需 live schema 即可高置信判定的规则。由于 SQL 词法和 grammar 本身存在方言边界，当前没有公共 static 规则：
+`check.kind=static` 表示 `scripts/sql_guard.py` 已实现自动判定，列入 JSON 的 `checked_rules`。带有 `check.review_gate` 的混合规则列入 `screened_rules`。候选命中按 `review_gate=warn` 输出，明确的违规分支仍使用规则定义的 `gate`。退出码由实际发现的 Block 决定。
 
-所有自动规则均位于 `mysql.json` 或 `postgresql.json`，以 `sql_guard.py` 的 `DIALECT_GUARD_RULES` 与 JSON `checked_rules` 为准。finding ID 必须以当前方言前缀开头，禁止跨方言返回规则。
-
-`hybrid` 规则也可以有明确的高置信语法分支进入 `checked_rules`，但其缺省配置、运行环境或业务语义仍需人工证据。`POSTGRESQL-DDL-001` 依赖生产环境、表规模和迁移事务配置，不因缺少 `CONCURRENTLY` 被脚本直接阻断。
-
-JSON 输出中的 `checked_rules` 明确列出本次自动检查集合。退出码 `0` 只代表该集合未命中，并非加载路径中的全部规则通过。
+字符集、引擎及分布式事务的候选命中需要结合部署配置和审批记录。可能承载 UUID 的主键列依据数据模型、生成方式或写入代码核实；业务编码可以使用字符类型。`POSTGRESQL-DDL-001` 的并发建索引要求需要结合生产环境、表规模和迁移事务配置评审。
 
 ## 维护规则
 

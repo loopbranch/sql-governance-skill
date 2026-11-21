@@ -60,7 +60,7 @@ class RuleCatalogTest(unittest.TestCase):
 
     def test_source_body_contributes_to_severity(self) -> None:
         self.assertEqual("mandatory", self.mysql_rules["MYSQL-ENC-001"]["level"])
-        self.assertEqual("prohibition", self.mysql_rules["MYSQL-GTAB-006"]["level"])
+        self.assertEqual("prohibition", self.rules["G.TAB.06"]["level"])
 
     def test_dialect_differences_are_not_kept_as_common_rules(self) -> None:
         split_sources = {
@@ -84,16 +84,9 @@ class RuleCatalogTest(unittest.TestCase):
         self.assertEqual(expected_split, postgresql_sources)
 
     def test_generated_variants_are_dialect_scoped_and_have_evidence_examples(self) -> None:
-        for dialect, rules, prefix, label in (
-            ("mysql", self.mysql_rules, "MYSQL-G", "MySQL 5.7"),
-            ("postgresql", self.postgresql_rules, "POSTGRESQL-G", "PostgreSQL 16"),
-        ):
-            for rule_id, rule in rules.items():
+        for dialect, rules in (("mysql", self.mysql_rules), ("postgresql", self.postgresql_rules)):
+            for rule in rules.values():
                 self.assertEqual([dialect], rule["dialects"])
-                if not rule_id.startswith(prefix):
-                    continue
-                self.assertIn(label, rule["name"])
-                self.assertIn(label, rule["condition"])
                 self.assertTrue(rule["examples"]["positive"].strip())
                 self.assertTrue(rule["examples"]["negative"].strip())
 
@@ -107,6 +100,22 @@ class RuleCatalogTest(unittest.TestCase):
     def test_mysql_update_static_rule_is_declared_by_guard(self) -> None:
         self.assertEqual("static", self.mysql_rules["MYSQL-UPD-001"]["check"]["kind"])
         self.assertIn("MYSQL-UPD-001", sql_guard.DIALECT_GUARD_RULES["mysql"])
+
+    def test_shared_examples_and_style_gate(self) -> None:
+        for rule_id in ("G.FMT.02", "G.FMT.03", "G.FMT.07", "G.NAM.05"):
+            self.assertEqual("warn", self.rules[rule_id]["gate"])
+        self.assertIn("decimal(19,4)", self.rules["G.TAB.09"]["examples"]["positive"])
+        self.assertIn("= null", self.rules["G.SEL.21"]["examples"]["negative"])
+        self.assertIn("date(created_at)", self.rules["G.SEL.25"]["examples"]["negative"])
+
+    def test_dialect_catalog_matches_executable_checks(self) -> None:
+        for dialect, rules in (("mysql", self.mysql_rules), ("postgresql", self.postgresql_rules)):
+            expected = {
+                r["id"] for r in rules.values()
+                if r["check"]["kind"] == "static" or "review_gate" in r["check"]
+            }
+            self.assertEqual(expected, sql_guard.DIALECT_GUARD_RULES[dialect])
+            self.assertEqual("warn", rules[f"{dialect.upper()}-DEL-002"]["gate"])
 
     def test_markdown_cleanup_preserves_sql_asterisks(self) -> None:
         self.assertEqual(

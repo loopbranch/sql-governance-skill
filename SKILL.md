@@ -22,7 +22,7 @@ metadata:
 ## 先识别数据库方言
 
 1. 优先读取项目配置、连接驱动、迁移工具和已有 DDL 中的明确证据，确定每个文件是 `mysql` 还是 `postgresql`。
-2. MySQL 线索包括反引号、`AUTO_INCREMENT`、`ENGINE=`、`DEFAULT CHARSET`、`UNSIGNED`；PostgreSQL 线索包括 `::type`、`jsonb`、`timestamptz`、`CONCURRENTLY`、`serial`、`RETURNING`。线索只用于候选识别，不能覆盖项目明确配置。
+2. MySQL 线索包括反引号标识符、表选项和列定义中的 `AUTO_INCREMENT` 或 `UNSIGNED`。PostgreSQL 线索包括 `::type` 转型、列定义中的 `jsonb` 或 `serial` 类型，以及 `CREATE INDEX CONCURRENTLY`。按语法位置判断，项目明确配置优先。
 3. 方言不明确时只应用公共规则，并以 `Block: dialect-required` 停止方言合规结论，要求开发者明确选择 MySQL 或 PostgreSQL。不得默认按 MySQL，也不得把两种方言规则同时套到同一文件。
 4. 一个变更同时包含两种方言时，按文件分别检查并在报告中分别汇总。
 
@@ -37,7 +37,7 @@ metadata:
 5. 需要判断某个源条款为何保留 common 或拆分时，读取 [references/dialect-isolation-audit.md](references/dialect-isolation-audit.md)。不得把已拆分条款的另一方言规则作为补充规则加载。
 6. 只加载与本次 SQL 对象和阶段相关的规则；不要因未检查无关领域而声称全量合规。
 7. `check.kind=static` 表示本仓库 `sql_guard.py` 已实现高置信自动判定；`manual` 必须收集证据；`hybrid` 先做静态筛查，再确认上下文。具体自动覆盖 ID 以 [rules/README.md](rules/README.md) 为准。
-8. 对 SQL 文件运行 `python3 scripts/sql_guard.py --dialect <mysql|postgresql> <files...>`。退出码 `1` 为已实现规则命中 Block，`2` 为输入或方言错误；`--format json` 的 `checked_rules` 是本次自动检查集合。脚本通过只表示该集合未命中，不代表其余规则通过。
+8. 对 SQL 文件运行 `python3 scripts/sql_guard.py --dialect <mysql|postgresql> <files...>`。退出码 `1` 为已实现规则命中 Block，`2` 为输入或方言错误；`--format json` 的 `checked_rules` 列出静态规则，`screened_rules` 列出带自动分支的混合规则。根据数据模型、运行配置和适用的审批记录复核 Warn，并在确认违规后按规则层级定级。
 
 ## 场景一：方案生成、编码与方案分析
 

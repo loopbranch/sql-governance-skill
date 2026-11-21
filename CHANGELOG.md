@@ -26,13 +26,15 @@
 ### Fixed
 
 - SQL 门禁只按顶层主语句识别 DML，避免 `FOR UPDATE`、列属性和 CTE 子查询误报。
-- 覆盖 PostgreSQL `FULL OUTER JOIN`、`ALTER COLUMN`、表级 serial/identity 主键、临时表和 CTE INSERT。
+- 覆盖 PostgreSQL `ALTER COLUMN`、表级 serial/identity 主键、临时表和 CTE INSERT。
 - 按方言处理 `#`，检查所有 MySQL 字符集声明，并将 PostgreSQL 并发索引保留为上下文相关的 hybrid 规则。
 - 公共规则严重级别读取完整条款，正反例改为可执行 SQL 或具体证据场景；`static` 与脚本实际覆盖保持一致。
 - 修复 Markdown 导入器删除 `select *`、`count(*)` 中星号的问题，并增加语义快照测试。
 - lexer 按 MySQL 5.7 与 PostgreSQL 16 分别处理 `--`、反斜杠字符串、`#` 和嵌套块注释。
-- 递归检查 PostgreSQL data-modifying CTE，补齐 UUID 主键类型、弱方言线索和方言 static 清单门禁。
-- 对全部 154 条源规则完成穷举式方言隔离审计：仅 24 条纯组织/文本/归档规则保留 common，其余 130 条成对拆为 MySQL/PostgreSQL 规则；每个加载路径仍完整覆盖 154 个源条款。
+- 递归检查 PostgreSQL data-modifying CTE，将 UUID 存储候选交由模型与写入路径复核，按类型声明位置识别方言，并校验静态门禁清单。
+- 将 86 条重复政策归入公共层。每个方言加载路径包含 110 条共同政策及对应的 44 个方言源条款。
+- PostgreSQL 允许 FULL OUTER JOIN 和 CROSS JOIN LATERAL。MySQL 检查省略 COLUMN 的删列语句，支持显式指定 NO_BACKSLASH_ESCAPES。
+- 分离 DELETE 的 WHERE 门禁和索引建议。字符集、引擎、分布式事务的候选命中提示复核，命名中的数字及指定排版规则降为 Warn。
 - 自动 finding 全部改用方言规则 ID，并增加跨方言 ID 泄漏、成对覆盖和 154 条审计表完整性测试。
 
 ## [1.0.0] - 2026-11-21

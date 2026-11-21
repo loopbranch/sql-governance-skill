@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Dependency-free high-confidence SQL gate for MySQL and PostgreSQL.
 
-The CLI covers only catalog rules that can be decided without a live schema.
-Hybrid/manual rules remain mandatory review work in SKILL.md.
+The CLI runs static checks and screens hybrid rules with executable branches.
+Rules that depend on schema, business semantics or approvals still need review.
 """
 
 from __future__ import annotations
@@ -11,6 +11,7 @@ import argparse
 import json
 import re
 import sys
+from functools import lru_cache
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
@@ -64,14 +65,18 @@ def starts_line_comment(sql: str, index: int, dialect: str | None) -> bool:
     return next_index >= len(sql) or sql[next_index].isspace() or ord(sql[next_index]) < 32
 
 
-def quote_uses_backslash(sql: str, index: int, dialect: str | None, quote: str) -> bool:
+def quote_uses_backslash(sql: str, index: int, dialect: str | None, quote: str, mysql_no_backslash_escapes: bool) -> bool:
     """Model server defaults: MySQL escapes backslashes; PostgreSQL only does so in E''."""
     if dialect == "mysql":
-        return True
-    return dialect == "postgresql" and quote == "'" and index > 0 and sql[index - 1:index].lower() == "e"
+        return quote != "`" and not mysql_no_backslash_escapes
+    return (
+        dialect == "postgresql" and quote == "'" and index > 0
+        and sql[index - 1].lower() == "e"
+        and (index == 1 or not re.match(r"[\w$]", sql[index - 2]))
+    )
 
 
-def split_statements(sql: str, dialect: str | None = None) -> list[tuple[int, str]]:
+def split_statements(sql: str, dialect: str | None = None, *, mysql_no_backslash_escapes: bool = False) -> list[tuple[int, str]]:
     """Split on semicolons outside strings, quoted identifiers, dollar strings, and comments."""
     result: list[tuple[int, str]] = []
     start, line, start_line, index = 0, 1, 1, 0
@@ -111,7 +116,7 @@ def split_statements(sql: str, dialect: str | None = None) -> list[tuple[int, st
                     index += 2
                     continue
                 quote = None
-            elif char == "\\" and quote_uses_backslash(sql, quote_start, dialect, quote):
+            elif char == "\\" and quote_uses_backslash(sql, quote_start, dialect, quote, mysql_no_backslash_escapes):
                 index += 2
                 continue
             index += 1
@@ -149,7 +154,7 @@ def split_statements(sql: str, dialect: str | None = None) -> list[tuple[int, st
     return result
 
 
-def mask_literals_and_comments(sql: str, dialect: str | None = None) -> str:
+def mask_literals_and_comments(sql: str, dialect: str | None = None, *, mysql_no_backslash_escapes: bool = False, preserve_identifiers: bool = False) -> str:
     """Replace literal/comment contents with spaces while preserving layout and identifiers."""
     chars = list(sql)
     index = 0
@@ -173,7 +178,7 @@ def mask_literals_and_comments(sql: str, dialect: str | None = None) -> str:
             for pos in range(index, end): chars[pos] = " "
             index = end
             continue
-        if chars[index] in {"'", '"'}:
+        if chars[index] in {"'", '"', "`"}:
             quote = chars[index]
             quote_start = index
             end = index + 1
@@ -184,10 +189,13 @@ def mask_literals_and_comments(sql: str, dialect: str | None = None) -> str:
                         continue
                     end += 1
                     break
-                if chars[end] == "\\" and quote_uses_backslash(sql, quote_start, dialect, quote): end += 1
+                if chars[end] == "\\" and quote_uses_backslash(sql, quote_start, dialect, quote, mysql_no_backslash_escapes): end += 1
                 end += 1
-            for pos in range(index, min(end, len(chars))):
-                if chars[pos] != "\n": chars[pos] = " "
+            identifier = quote == "`" or (quote == '"' and dialect == "postgresql")
+            if quote != "`" and not (identifier and preserve_identifiers):
+                for pos in range(index, min(end, len(chars))):
+                    if chars[pos] != "\n":
+                        chars[pos] = " "
             index = end
             continue
         if chars[index] == "$" and dialect in {None, "postgresql"}:
@@ -202,21 +210,35 @@ def mask_literals_and_comments(sql: str, dialect: str | None = None) -> str:
     return "".join(chars)
 
 
-def detect_dialect(sql: str) -> str | None:
-    masked = mask_literals_and_comments(sql).lower()
-    mysql = bool(re.search(
-        r"`|\bauto_increment\b|\bengine\s*=|\bdefault\s+charset\b|"
-        r"\b(?:tinyint|smallint|mediumint|int|integer|bigint|decimal|numeric|float|double)\b[^,)]*\bunsigned\b",
-        masked,
-    ))
-    postgres = bool(re.search(
-        r"::[a-z]|\bconcurrently\b|\breturning\b|"
-        r"(?:\(|,)\s*[a-z_][a-z0-9_$]*\s+(?:timestamptz|jsonb|uuid|smallserial|serial|bigserial)\b",
-        masked,
-    ))
-    if mysql == postgres:
-        return None
-    return "mysql" if mysql else "postgresql"
+def detect_dialect(sql: str, *, mysql_no_backslash_escapes: bool = False) -> str | None:
+    evidence = set()
+    for dialect in DIALECT_GUARD_RULES:
+        options = {"mysql_no_backslash_escapes": mysql_no_backslash_escapes}
+        for _, statement in split_statements(sql, dialect, **options):
+            masked = mask_literals_and_comments(statement, dialect, **options).strip().lower()
+            ddl = mask_literals_and_comments(statement, dialect, preserve_identifiers=True, **options).strip().lower()
+            create_table = CREATE_TABLE_RE.match(ddl)
+            columns = table_segments(ddl) if create_table else []
+            if dialect == "mysql":
+                mysql_column = any(re.match(
+                    rf"{IDENTIFIER}\s+(?:(?:tinyint|smallint|mediumint|int|integer|bigint|decimal|numeric|float|double)"
+                    r"(?:\s*\([^)]+\))?\s+unsigned\b|\w+\b.*\bauto_increment\b)",
+                    column,
+                ) for column in columns)
+                if "`" in masked or mysql_column or (create_table and re.search(
+                    r"\bengine\s*=|\bdefault\s+charset\b", masked,
+                )):
+                    evidence.add(dialect)
+            else:
+                pg_column = any(re.match(
+                    rf"{IDENTIFIER}\s+(?:timestamptz|jsonb|uuid|smallserial|serial|bigserial)\b",
+                    column,
+                ) for column in columns)
+                if pg_column or re.search(r"::\s*[a-z_]", masked) or re.match(
+                    r"^create\s+(?:unique\s+)?index\s+concurrently\b", masked,
+                ):
+                    evidence.add(dialect)
+    return next(iter(evidence)) if len(evidence) == 1 else None
 
 
 def compact(statement: str, limit: int = 180) -> str:
@@ -224,7 +246,15 @@ def compact(statement: str, limit: int = 180) -> str:
     return value if len(value) <= limit else value[:limit - 3] + "..."
 
 
-def add(findings: list[Finding], file: str, line: int, rule_id: str, dialect: str, message: str, statement: str, gate: str = "block") -> None:
+@lru_cache(maxsize=2)
+def rule_metadata(dialect: str) -> dict[str, dict]:
+    path = Path(__file__).resolve().parents[1] / "rules" / f"{dialect}.json"
+    return {rule["id"]: rule for rule in json.loads(path.read_text(encoding="utf-8"))["rules"]}
+
+
+def add(findings: list[Finding], file: str, line: int, rule_id: str, dialect: str, message: str, statement: str, *, review: bool = False) -> None:
+    rule = rule_metadata(dialect)[rule_id]
+    gate = rule["check"]["review_gate"] if review else rule["gate"]
     findings.append(Finding(file, line, rule_id, gate, dialect, message, compact(statement)))
 
 
@@ -266,7 +296,8 @@ def top_level_words(sql: str) -> list[tuple[str, int, int]]:
 
 
 def main_statement(words: list[tuple[str, int, int]]) -> tuple[int, str, int, int] | None:
-    for index, (word, start, end) in enumerate(words):
+    candidates = words if words and words[0][0] == "with" else words[:1]
+    for index, (word, start, end) in enumerate(candidates):
         if word in {"select", "update", "delete", "insert", "create", "alter", "drop"}:
             return index, word, start, end
     return None
@@ -285,101 +316,114 @@ CREATE_TABLE_RE = re.compile(
 )
 
 
-def table_segments(normalized: str) -> list[str]:
-    """Split a CREATE TABLE body on top-level commas."""
-    start = normalized.find("(")
-    if start < 0:
-        return []
-    depth, segment_start = 0, start + 1
-    segments: list[str] = []
-    for index in range(start + 1, len(normalized)):
-        char = normalized[index]
-        if char == "(":
+IDENTIFIER = r'(?:`(?:[^`]|``)+`|"(?:[^"]|"")+"|[a-z_][a-z0-9_$]*)'
+TABLE_NAME = rf"{IDENTIFIER}(?:\s*\.\s*{IDENTIFIER})?"
+
+
+def comma_separated(sql: str) -> list[str]:
+    """Split at depth-zero commas, ignoring quoted identifier contents."""
+    segments = []
+    start, depth = 0, 0
+    for token in re.finditer(rf'{IDENTIFIER}|[(),]', sql):
+        value = token.group()
+        if value == "(":
             depth += 1
-        elif char == ")":
+        elif value == ")":
             if depth == 0:
-                segments.append(normalized[segment_start:index].strip())
+                sql = sql[:token.start()]
                 break
             depth -= 1
-        elif char == "," and depth == 0:
-            segments.append(normalized[segment_start:index].strip())
-            segment_start = index + 1
-    return [segment for segment in segments if segment]
+        elif value == "," and depth == 0:
+            segments.append(sql[start:token.start()].strip())
+            start = token.end()
+    segments.append(sql[start:].strip())
+    return segments
 
 
-def postgresql_serial_pk(normalized: str) -> bool:
-    banned_columns: set[str] = set()
-    primary_columns: set[str] = set()
-    for segment in table_segments(normalized):
-        table_pk = re.search(r"\bprimary\s+key\s*\(([^)]*)\)", segment)
-        if table_pk and re.match(r"^(?:constraint\s+\S+\s+)?primary\s+key\b", segment):
-            primary_columns.update(re.findall(r"[a-z_][a-z0-9_$]*", table_pk.group(1)))
-            continue
-        column = re.match(r'^("[^"]+"|[a-z_][a-z0-9_$]*)\s+(.+)$', segment)
-        if not column:
-            continue
-        name, definition = column.group(1).strip('"').lower(), column.group(2)
-        if re.search(r"\b(?:smallserial|serial|bigserial)\b|\bgenerated\s+(?:always|by\s+default)\s+as\s+identity\b", definition):
-            banned_columns.add(name)
-            if re.search(r"\bprimary\s+key\b", definition):
-                primary_columns.add(name)
-    return bool(banned_columns & primary_columns)
+def table_segments(normalized: str) -> list[str]:
+    """Extract the column and constraint definitions from a CREATE TABLE."""
+    create = CREATE_TABLE_RE.match(normalized)
+    if not create:
+        return []
+    table = re.match(rf"\s+(?:if\s+not\s+exists\s+)?{TABLE_NAME}\s*\(", normalized[create.end():])
+    if not table:
+        return []
+    return comma_separated(normalized[create.end() + table.end():])
 
 
 def primary_key_definitions(normalized: str) -> list[str]:
     """Return column definitions participating in inline or table-level primary keys."""
-    columns: dict[str, str] = {}
-    primary_columns: set[str] = set()
+    columns = {}
+    primary_columns = set()
     for segment in table_segments(normalized):
-        table_pk = re.search(r"\bprimary\s+key\s*\(([^)]*)\)", segment)
-        if table_pk and re.match(r"^(?:constraint\s+\S+\s+)?primary\s+key\b", segment):
-            primary_columns.update(re.findall(r"[a-z_][a-z0-9_$]*", table_pk.group(1)))
+        table_pk = re.match(rf"^(?:constraint\s+(?:{IDENTIFIER}\s+)?)?primary\s+key\s*\(([^)]*)\)", segment)
+        if table_pk:
+            for column in comma_separated(table_pk.group(1)):
+                name = re.match(IDENTIFIER, column)
+                if name:
+                    primary_columns.add(name.group().strip('`"'))
             continue
-        column = re.match(r'^(?:`([^`]+)`|"([^"]+)"|([a-z_][a-z0-9_$]*))\s+(.+)$', segment)
+        column = re.match(rf"^({IDENTIFIER})\s+(.+)$", segment, re.S)
         if not column:
             continue
-        name = next(value for value in column.groups()[:3] if value).lower()
-        definition = column.group(4)
+        name, definition = column.groups()
+        name = name.strip('`"')
         columns[name] = definition
         if re.search(r"\bprimary\s+key\b", definition):
             primary_columns.add(name)
-    return [columns[name] for name in primary_columns if name in columns]
+    return [definition for name, definition in columns.items() if name in primary_columns]
 
 
-def cte_bodies(normalized: str) -> list[tuple[int, str]]:
+def drops_column(normalized: str, dialect: str) -> bool:
+    table = re.match(rf"^alter\s+table\s+(?:if\s+exists\s+)?(?:only\s+)?{TABLE_NAME}\s+", normalized)
+    if not table:
+        return False
+    # An action starts after the table name or a top-level comma.
+    exclusions = "index|key|primary|foreign|partition|constraint" if dialect == "mysql" else "constraint"
+    return any(re.match(
+        rf"^drop\s+(?:column\s+(?:if\s+exists\s+)?{IDENTIFIER}|(?!(?:{exclusions})\b)(?:if\s+exists\s+)?{IDENTIFIER})",
+        action,
+    ) for action in comma_separated(normalized[table.end():]))
+
+
+def cte_bodies(masked: str) -> list[tuple[int, int]]:
     """Extract WITH item bodies after AS, including nested PostgreSQL CTEs."""
-    bodies: list[tuple[int, str]] = []
-    for match in re.finditer(r"\bas\s*\(", normalized):
+    bodies: list[tuple[int, int]] = []
+    for match in re.finditer(r"\bas\s*\(", masked, re.I):
         start = match.end()
         depth, index = 1, start
-        while index < len(normalized) and depth:
-            if normalized[index] == "(":
+        while index < len(masked) and depth:
+            if masked[index] == "(":
                 depth += 1
-            elif normalized[index] == ")":
+            elif masked[index] == ")":
                 depth -= 1
             index += 1
         if depth == 0:
-            bodies.append((start, normalized[start:index - 1].strip()))
+            bodies.append((start, index - 1))
     return bodies
 
 
-def inspect_statement(file: str, line: int, statement: str, dialect: str) -> list[Finding]:
+def inspect_statement(file: str, line: int, statement: str, dialect: str, *, mysql_no_backslash_escapes: bool = False) -> list[Finding]:
     findings: list[Finding] = []
-    masked = mask_literals_and_comments(statement, dialect)
+    masked = mask_literals_and_comments(statement, dialect, mysql_no_backslash_escapes=mysql_no_backslash_escapes)
     normalized = re.sub(r"\s+", " ", masked).strip().lower()
     words = top_level_words(normalized)
     main = main_statement(words)
 
     if dialect == "postgresql" and normalized.startswith("with "):
-        for offset, body in cte_bodies(normalized):
-            if re.match(r"^(?:with\b[\s\S]*?\b)?(?:insert|update|delete)\b", body):
-                body_line = line + normalized[:offset].count("\n")
-                findings.extend(inspect_statement(file, body_line, body, dialect))
+        for start, end in cte_bodies(masked):
+            body = masked[start:end]
+            if re.match(r"\s*(?:insert|update|delete)\b", body, re.I):
+                offset = start + len(body) - len(body.lstrip())
+                body_line = line + masked[:offset].count("\n")
+                findings.extend(inspect_statement(file, body_line, statement[offset:end], dialect))
 
-    if re.search(r"\bselect\s+(?:(?:all|distinct)\s+)?(?:[a-z0-9_]+\.)?\*(?:\s|,|$)", normalized):
+    if re.search(r"\bselect\s+(?:(?:all|distinct)\s+)?(?:[a-z0-9_]+\.)?\*(?:\s|,|\)|$)", normalized):
         add(findings, file, line, split_rule_id(dialect, "G.SEL.12"), dialect, "SELECT * requires a documented catalog exception", statement)
-    if re.search(r"\b(?:cross|full(?:\s+outer)?)\s+join\b", normalized):
-        add(findings, file, line, f"{'MYSQL' if dialect == 'mysql' else 'POSTGRESQL'}-SEL-008", dialect, "CROSS JOIN and FULL JOIN require dialect-specific remediation", statement)
+    if dialect == "mysql" and re.search(r"\b(?:cross|full(?:\s+outer)?)\s+join\b", normalized):
+        add(findings, file, line, "MYSQL-SEL-008", dialect, "Avoid CROSS JOIN; MySQL does not support FULL JOIN", statement)
+    if dialect == "postgresql" and re.search(r"\bcross\s+join\b(?!\s+lateral\b)", normalized):
+        add(findings, file, line, "POSTGRESQL-SEL-008", dialect, "Review whether the Cartesian product of this CROSS JOIN is intentional", statement, review=True)
 
     if main and main[1] in {"update", "delete"}:
         main_index, dml_kind, _, _ = main
@@ -416,7 +460,8 @@ def inspect_statement(file: str, line: int, statement: str, dialect: str) -> lis
     if re.match(r"^drop\s+table\b", normalized) and not re.match(r"^drop\s+table\s+if\s+exists\b", normalized):
         add(findings, file, line, split_rule_id(dialect, "G.UPG.11"), dialect, "DROP TABLE must use IF EXISTS", statement)
     if re.match(r"^alter\s+table\b", normalized):
-        if re.search(r"\bdrop\s+column\s+(?:if\s+exists\s+)?[a-z0-9_`\"]+", normalized):
+        ddl = mask_literals_and_comments(statement, dialect, mysql_no_backslash_escapes=mysql_no_backslash_escapes, preserve_identifiers=True).strip().lower()
+        if drops_column(ddl, dialect):
             add(findings, file, line, split_rule_id(dialect, "G.UPG.03"), dialect, "Dropping columns is prohibited", statement)
         if re.search(r"\b(?:modify|change)\s+(?:column\s+)?|\balter\s+column\s+[a-z0-9_\"]+\s+(?:set\s+data\s+)?type\b", normalized):
             add(findings, file, line, f"{'MYSQL' if dialect == 'mysql' else 'POSTGRESQL'}-UPG-005", dialect, "Direct column type modification requires a compatible expand-contract plan", statement)
@@ -430,41 +475,50 @@ def inspect_statement(file: str, line: int, statement: str, dialect: str) -> lis
         insert_sql = normalized[main[2]:]
         if not re.match(r"^insert\s+into\s+[a-z0-9_.`\"]+\s*\(", insert_sql):
             add(findings, file, line, split_rule_id(dialect, "G.INS.01"), dialect, "INSERT must list target columns", statement)
-    if re.search(r"\bxa\s+(?:start|begin|end|prepare|commit|rollback)\b", normalized):
-        add(findings, file, line, "MYSQL-TXN-007" if dialect == "mysql" else "POSTGRESQL-TXN-007", dialect, "Distributed transactions require explicit approval", statement)
-    if dialect == "postgresql" and re.search(r"\b(?:prepare\s+transaction|commit\s+prepared|rollback\s+prepared)\b", normalized):
-        add(findings, file, line, "POSTGRESQL-TXN-007", dialect, "Prepared transactions require explicit approval", statement)
+    if dialect == "mysql" and re.match(r"^xa\s+(?:start|begin|end|prepare|commit|rollback)\b", normalized):
+        add(findings, file, line, "MYSQL-TXN-007", dialect, "Verify approval for this XA transaction", statement, review=True)
+    if dialect == "postgresql" and re.match(r"^(?:prepare\s+transaction|commit\s+prepared|rollback\s+prepared)\b", normalized):
+        add(findings, file, line, "POSTGRESQL-TXN-007", dialect, "Verify approval for this prepared transaction", statement, review=True)
     if re.search(r"\bset\s+(?:(?:session|global)\s+)?transaction\s+isolation\s+level\b", normalized):
         add(findings, file, line, split_rule_id(dialect, "G.TXN.01"), dialect, "Explicit transaction isolation levels are prohibited", statement)
 
+    if create_table:
+        ddl = mask_literals_and_comments(statement, dialect, mysql_no_backslash_escapes=mysql_no_backslash_escapes, preserve_identifiers=True).strip().lower()
+        primary_keys = primary_key_definitions(ddl)
+        if dialect == "mysql":
+            if any(re.search(r"\bauto_increment\b", definition) for definition in primary_keys):
+                add(findings, file, line, "MYSQL-PK-001", dialect, "AUTO_INCREMENT primary keys are prohibited", statement)
+        elif any(re.match(r"(?:smallserial|serial|bigserial)\b", definition) or re.search(
+            r"\bgenerated\s+(?:always|by\s+default)\s+as\s+identity\b", definition,
+        ) for definition in primary_keys):
+            add(findings, file, line, "POSTGRESQL-PK-001", dialect, "Serial/identity primary keys are prohibited", statement)
+        candidate_type = (
+            r"(?:char(?:acter)?|varchar|text|tinytext|mediumtext|longtext|varbinary)\b|binary\s*\((?!\s*16\s*\))"
+            if dialect == "mysql" else r"(?:char(?:acter)?|varchar|text|bytea|binary|varbinary)\b"
+        )
+        if any(re.match(candidate_type, definition) for definition in primary_keys):
+            storage = "BINARY(16)" if dialect == "mysql" else "native uuid"
+            add(findings, file, line, f"{dialect.upper()}-PK-001", dialect, f"Verify primary-key semantics in the data model; UUID keys must use {storage}", statement, review=True)
+
     if dialect == "mysql":
-        if re.search(r"\bauto_increment\b", normalized):
-            add(findings, file, line, "MYSQL-PK-001", dialect, "AUTO_INCREMENT primary keys are prohibited", statement)
-        if create_table and any(re.search(r"\b(?:char|varchar)\s*\(\s*3[26]\s*\)", definition) for definition in primary_key_definitions(normalized)):
-            add(findings, file, line, "MYSQL-PK-001", dialect, "Text UUID primary keys must use BINARY(16)", statement)
         engine = re.search(r"\bengine\s*=\s*([a-z0-9_]+)", normalized)
         if engine and engine.group(1) != "innodb":
-            add(findings, file, line, "MYSQL-TAB-001", dialect, "MySQL tables must use InnoDB", statement)
+            add(findings, file, line, "MYSQL-TAB-001", dialect, "Verify the non-InnoDB engine and any approved exception", statement, review=True)
         charsets = re.findall(r"\b(?:default\s+)?(?:character\s+set|charset)\s*=?\s*([a-z0-9_]+)", normalized)
         if any(charset != "utf8mb4" for charset in charsets):
-            add(findings, file, line, "MYSQL-ENC-001", dialect, "MySQL character set must be utf8mb4", statement)
-    else:
-        if re.search(r"\bengine\s*=|\b(?:default\s+)?charset\s*=|\bauto_increment\b|`", normalized):
-            add(findings, file, line, "POSTGRESQL-TAB-001", dialect, "MySQL-only table syntax is invalid in PostgreSQL", statement)
-        if create_table and postgresql_serial_pk(normalized):
-            add(findings, file, line, "POSTGRESQL-PK-001", dialect, "Serial/identity distributed primary keys are prohibited", statement)
-        if create_table and any(re.search(r"\b(?:bytea\b|binary\s*\(\s*16\s*\)|(?:char|varchar)\s*\(\s*3[26]\s*\))", definition) for definition in primary_key_definitions(normalized)):
-            add(findings, file, line, "POSTGRESQL-PK-001", dialect, "Distributed UUID primary keys must use native uuid", statement)
+            add(findings, file, line, "MYSQL-ENC-001", dialect, "Verify the non-utf8mb4 character set and any approved exception", statement, review=True)
+    elif re.search(r"\bengine\s*=|\b(?:default\s+)?charset\s*=|\bauto_increment\b|`", normalized):
+        add(findings, file, line, "POSTGRESQL-TAB-001", dialect, "MySQL-only table syntax is invalid in PostgreSQL", statement)
     return findings
 
 
-def inspect(file: str, sql: str, requested_dialect: str) -> tuple[str, list[Finding]]:
-    dialect = detect_dialect(sql) if requested_dialect == "auto" else requested_dialect
+def inspect(file: str, sql: str, requested_dialect: str, *, mysql_no_backslash_escapes: bool = False) -> tuple[str, list[Finding]]:
+    dialect = detect_dialect(sql, mysql_no_backslash_escapes=mysql_no_backslash_escapes) if requested_dialect == "auto" else requested_dialect
     if dialect is None:
         raise ValueError(f"{file}: cannot determine SQL dialect; pass --dialect mysql or --dialect postgresql")
     findings: list[Finding] = []
-    for line, statement in split_statements(sql, dialect):
-        findings.extend(inspect_statement(file, line, statement, dialect))
+    for line, statement in split_statements(sql, dialect, mysql_no_backslash_escapes=mysql_no_backslash_escapes):
+        findings.extend(inspect_statement(file, line, statement, dialect, mysql_no_backslash_escapes=mysql_no_backslash_escapes))
     return dialect, findings
 
 
@@ -482,6 +536,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run high-confidence MySQL/PostgreSQL Block rules")
     parser.add_argument("paths", nargs="+", help="SQL files, or - for stdin")
     parser.add_argument("--dialect", choices=("auto", "mysql", "postgresql"), default="auto")
+    parser.add_argument("--mysql-no-backslash-escapes", action="store_true", help="Use MySQL NO_BACKSLASH_ESCAPES for the input")
     parser.add_argument("--format", choices=("text", "json"), default="text")
     return parser.parse_args()
 
@@ -490,17 +545,35 @@ def main() -> int:
     args = parse_args(); findings: list[Finding] = []; dialects: dict[str, str] = {}
     try:
         for file, sql in read_inputs(args.paths):
-            dialect, current = inspect(file, sql, args.dialect); dialects[file] = dialect; findings.extend(current)
+            dialect, current = inspect(file, sql, args.dialect, mysql_no_backslash_escapes=args.mysql_no_backslash_escapes)
+            dialects[file] = dialect
+            findings.extend(current)
     except (OSError, UnicodeError, ValueError) as error:
         print(f"ERROR: {error}", file=sys.stderr); return 2
+    failed = any(item.gate == "block" for item in findings)
     if args.format == "json":
-        checked_rules = sorted(COMMON_GUARD_RULES | set().union(*(DIALECT_GUARD_RULES[dialect] for dialect in set(dialects.values()))))
-        print(json.dumps({"result": "fail" if findings else "pass", "dialects": dialects, "checked_rules": checked_rules, "findings": [asdict(item) for item in findings]}, ensure_ascii=False, indent=2))
+        checked_rules = set(COMMON_GUARD_RULES)
+        screened_rules = set()
+        for dialect in set(dialects.values()):
+            metadata = rule_metadata(dialect)
+            for rule_id in DIALECT_GUARD_RULES[dialect]:
+                if metadata[rule_id]["check"]["kind"] == "static":
+                    checked_rules.add(rule_id)
+                else:
+                    screened_rules.add(rule_id)
+        print(json.dumps({
+            "result": "fail" if failed else "pass",
+            "dialects": dialects,
+            "checked_rules": sorted(checked_rules),
+            "screened_rules": sorted(screened_rules),
+            "findings": [asdict(item) for item in findings],
+        }, ensure_ascii=False, indent=2))
     elif findings:
-        for item in findings: print(f"{item.file}:{item.line}: {item.gate.upper()} {item.rule_id} [{item.dialect}] {item.message}\n  {item.snippet}")
+        for item in findings:
+            print(f"{item.file}:{item.line}: {item.gate.upper()} {item.rule_id} [{item.dialect}] {item.message}\n  {item.snippet}")
     else:
-        print(f"PASS: no high-confidence Block violations found ({', '.join(sorted(set(dialects.values())))})")
-    return 1 if findings else 0
+        print(f"PASS: no findings ({', '.join(sorted(set(dialects.values())))})")
+    return int(failed)
 
 
 if __name__ == "__main__":

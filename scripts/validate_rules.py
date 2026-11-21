@@ -24,15 +24,8 @@ EXPECTED_SOURCE_DOMAINS = {
     "CMT": 10, "SEL": 35, "INS": 3, "DEL": 3, "UPD": 7,
     "CLI": 5, "TXN": 8, "UPG": 13, "SEC": 3, "KOO": 9,
 }
-EXPECTED_COMMON_IDS = {
-    "G.DBS.04", "G.TAB.02",
-    "G.FMT.02", "G.FMT.03", "G.FMT.07", "G.FMT.12",
-    "G.NAM.04", "G.NAM.05", "G.NAM.06",
-    "G.CMT.01", "G.CMT.02", "G.CMT.04", "G.CMT.05", "G.CMT.08",
-    "G.CMT.09", "G.CMT.10",
-    "G.KOO.01", "G.KOO.02", "G.KOO.03", "G.KOO.04", "G.KOO.05",
-    "G.KOO.07", "G.KOO.08", "G.KOO.09",
-}
+sys.path.insert(0, str(ROOT / "scripts"))
+from import_standard import COMMON_SOURCE_IDS as EXPECTED_COMMON_IDS
 EXPECTED_COMMON_STATIC_IDS: set[str] = set()
 REQUIRED = {"id", "source", "name", "level", "gate", "scope", "dialects", "condition", "check", "examples", "remediation", "confirmation_required"}
 
@@ -72,8 +65,10 @@ def validate_rule(rule: object, file_name: str, index: int, seen: set[str]) -> N
     if not isinstance(rule["confirmation_required"], bool):
         fail(f"{rule_id}: confirmation_required must be boolean")
     check = rule["check"]
-    if not isinstance(check, dict) or set(check) != {"kind", "detector"} or check["kind"] not in VALID_KINDS:
+    if not isinstance(check, dict) or set(check) - {"kind", "detector", "review_gate"} or not {"kind", "detector"} <= set(check) or check["kind"] not in VALID_KINDS:
         fail(f"{rule_id}: invalid check")
+    if "review_gate" in check and (check["kind"] != "hybrid" or check["review_gate"] != "warn"):
+        fail(f"{rule_id}: review_gate must be warn on a hybrid rule")
     examples = rule["examples"]
     if not isinstance(examples, dict) or set(examples) != {"positive", "negative"}:
         fail(f"{rule_id}: invalid examples")
@@ -161,22 +156,17 @@ def main() -> int:
 
     # Import lazily to make the executable coverage contract testable without
     # duplicating its dialect rule sets here.
-    sys.path.insert(0, str(ROOT / "scripts"))
     import sql_guard  # type: ignore
     if static_ids != sql_guard.COMMON_GUARD_RULES:
         fail("common static rules and sql_guard.COMMON_GUARD_RULES differ")
     for dialect in VALID_DIALECTS:
-        dialect_ids = {rule["id"] for rule in files[dialect]["rules"]}
-        dialect_static = {rule["id"] for rule in files[dialect]["rules"] if rule["check"]["kind"] == "static"}
+        automatic = {
+            rule["id"] for rule in files[dialect]["rules"]
+            if rule["check"]["kind"] == "static" or "review_gate" in rule["check"]
+        }
         configured = sql_guard.DIALECT_GUARD_RULES[dialect]
-        if not dialect_static <= configured:
-            fail(f"{dialect}: static rules missing from DIALECT_GUARD_RULES: {sorted(dialect_static-configured)}")
-        if not configured <= dialect_ids:
-            fail(f"{dialect}: DIALECT_GUARD_RULES references unknown rules: {sorted(configured-dialect_ids)}")
-        configured_rules = {rule["id"]: rule for rule in files[dialect]["rules"] if rule["id"] in configured}
-        non_block = {rule_id for rule_id, rule in configured_rules.items() if rule["gate"] != "block"}
-        if non_block:
-            fail(f"{dialect}: executable guard rules must be block: {sorted(non_block)}")
+        if automatic != configured:
+            fail(f"{dialect}: catalog and guard differ: missing={sorted(automatic-configured)} extra={sorted(configured-automatic)}")
 
     levels = Counter(rule["level"] for rule in files["common"]["rules"])
     print(f"OK: {len(seen)} rules ({len(common_ids)} common + {len(split_sources['mysql'])} split sources per dialect), catalog v{catalog['catalog_version']}")
