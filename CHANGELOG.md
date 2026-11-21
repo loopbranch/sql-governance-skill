@@ -4,9 +4,11 @@
 
 ## [Unreleased]
 
-### Added
+### Fixed
 
-- 预留后续规则与检测器变更。
+- PostgreSQL 的列名、类型及表达式中的 `engine`、`charset` 和 `auto_increment` 可以通过同名 MySQL 表语法筛查。
+- PostgreSQL 模式发现 MySQL 表选项、列属性、MySQL 特有的 `ALTER TABLE` 子句或反引号标识符时输出 `POSTGRESQL-TAB-001` Warn，提示复核数据库兼容性。
+- PostgreSQL 自增门禁按实际主键约束关联列，普通同名列、非主键自增列和带引号的约束名称可以通过。
 
 ## [2.0.0] - 2026-11-21
 

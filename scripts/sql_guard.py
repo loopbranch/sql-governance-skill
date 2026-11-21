@@ -220,14 +220,7 @@ def detect_dialect(sql: str, *, mysql_no_backslash_escapes: bool = False) -> str
             create_table = CREATE_TABLE_RE.match(ddl)
             columns = table_segments(ddl) if create_table else []
             if dialect == "mysql":
-                mysql_column = any(re.match(
-                    rf"{IDENTIFIER}\s+(?:(?:tinyint|smallint|mediumint|int|integer|bigint|decimal|numeric|float|double)"
-                    r"(?:\s*\([^)]+\))?\s+unsigned\b|\w+\b.*\bauto_increment\b)",
-                    column,
-                ) for column in columns)
-                if "`" in masked or mysql_column or (create_table and re.search(
-                    r"\bengine\s*=|\bdefault\s+charset\b", masked,
-                )):
+                if "`" in masked or has_mysql_table_options(ddl):
                     evidence.add(dialect)
             else:
                 pg_column = any(re.match(
@@ -258,6 +251,9 @@ def add(findings: list[Finding], file: str, line: int, rule_id: str, dialect: st
     findings.append(Finding(file, line, rule_id, gate, dialect, message, compact(statement)))
 
 
+UNQUOTED_IDENTIFIER = r"[^\W\d][\w$]*"
+
+
 def top_level_words(sql: str) -> list[tuple[str, int, int]]:
     """Return lowercase word tokens outside parentheses, with source offsets."""
     words: list[tuple[str, int, int]] = []
@@ -284,7 +280,7 @@ def top_level_words(sql: str) -> list[tuple[str, int, int]]:
             depth = max(0, depth - 1)
             index += 1
             continue
-        match = re.match(r"[a-z_][a-z0-9_$]*", sql[index:], re.IGNORECASE)
+        match = re.match(UNQUOTED_IDENTIFIER, sql[index:])
         if match:
             end = index + len(match.group(0))
             if depth == 0:
@@ -316,7 +312,7 @@ CREATE_TABLE_RE = re.compile(
 )
 
 
-IDENTIFIER = r'(?:`(?:[^`]|``)+`|"(?:[^"]|"")+"|[a-z_][a-z0-9_$]*)'
+IDENTIFIER = rf'(?:`(?:[^`]|``)+`|"(?:[^"]|"")+"|{UNQUOTED_IDENTIFIER})'
 TABLE_NAME = rf"{IDENTIFIER}(?:\s*\.\s*{IDENTIFIER})?"
 
 
@@ -345,31 +341,110 @@ def table_segments(normalized: str) -> list[str]:
     create = CREATE_TABLE_RE.match(normalized)
     if not create:
         return []
-    table = re.match(rf"\s+(?:if\s+not\s+exists\s+)?{TABLE_NAME}\s*\(", normalized[create.end():])
+    table = re.match(rf"\s+(?:if\s+not\s+exists\s+)?{TABLE_NAME}\s*\(", normalized[create.end():], re.I)
     if not table:
         return []
     return comma_separated(normalized[create.end() + table.end():])
 
 
-def primary_key_definitions(normalized: str) -> list[str]:
-    """Return column definitions participating in inline or table-level primary keys."""
+MYSQL_TABLE_OPTION = re.compile(
+    rf"^(?:engine|row_format|(?:default\s+)?(?:charset|character\s+set))(?:\s*=|\s+{IDENTIFIER})"
+    r"|^auto_increment(?:\s*=\s*|\s+)\d+\b|^comment\s*="
+)
+MYSQL_DROP_TABLE_ACTION = re.compile(
+    rf"^drop\s+(?:primary\s+key\b|foreign\s+key\s+{IDENTIFIER}"
+    rf"|(?:index|key|partition)\s+(?!(?:cascade|restrict)\b){IDENTIFIER})"
+)
+MYSQL_ALTER_TABLE_ACTION = re.compile(
+    r"^(?:modify|change)\s+|^convert\s+to\s+character\s+set\s+"
+    rf"|^add\s+(?:index|key)\s+{IDENTIFIER}\s*\(\s*(?:{IDENTIFIER}|\()"
+)
+ADD_COLUMN = re.compile(r"^add\s+(?:column\s+)?(?:if\s+not\s+exists\s+)?")
+
+
+def has_mysql_column_attributes(columns: list[str]) -> bool:
+    for column in columns:
+        name = re.match(IDENTIFIER, column)
+        if not name or name.group() in {"check", "constraint", "foreign", "key", "like", "primary", "unique"}:
+            continue
+        definition = column[name.end():]
+        previous = ""
+        # The first word is the type. Defaults and generated expressions can
+        # legitimately refer to a type, function or column named auto_increment.
+        for word, start, _ in top_level_words(definition)[1:]:
+            if word in {"check", "constraint", "default", "generated", "references"}:
+                break
+            if word == "set" and previous == "character":
+                return True
+            if word in {"auto_increment", "unsigned", "zerofill"}:
+                if previous != "collate" and not definition[:start].rstrip().endswith("."):
+                    return True
+            previous = word
+    return False
+
+
+def has_mysql_table_options(ddl: str) -> bool:
+    """Screen table options and column attributes at their DDL positions."""
+    create = CREATE_TABLE_RE.match(ddl)
+    if create:
+        header = re.match(rf"\s+(?:if\s+not\s+exists\s+)?{TABLE_NAME}", ddl[create.end():])
+        if not header:
+            return False
+        tail = ddl[create.end() + header.end():]
+        for word, start, _ in top_level_words(tail):
+            if word in {"as", "inherits", "like", "of", "on", "partition", "select", "tablespace", "using", "with"}:
+                break
+            if MYSQL_TABLE_OPTION.match(tail[start:]):
+                return True
+        return has_mysql_column_attributes(table_segments(ddl))
+
+    alter = re.match(rf"^alter\s+table\s+(?:if\s+exists\s+)?(?:only\s+)?{TABLE_NAME}(?:\s*\*)?\s+", ddl)
+    if not alter:
+        return False
+    for action in comma_separated(ddl[alter.end():]):
+        if any(check.match(action) for check in (MYSQL_TABLE_OPTION, MYSQL_ALTER_TABLE_ACTION, MYSQL_DROP_TABLE_ACTION)):
+            return True
+        column = ADD_COLUMN.match(action)
+        if column:
+            definition = action[column.end():].lstrip()
+            columns = comma_separated(definition[1:]) if definition.startswith("(") else [definition]
+            if has_mysql_column_attributes(columns):
+                return True
+    return False
+
+
+def column_key(identifier: str, dialect: str) -> str:
+    if dialect == "postgresql" and identifier.startswith('"'):
+        return identifier[1:-1].replace('""', '"')
+    return identifier.strip('`"').lower()
+
+
+def has_top_level_clause(definition: str, keyword: str, pattern: str) -> bool:
+    return any(
+        word == keyword and re.match(pattern, definition[start:], re.I)
+        for word, start, _ in top_level_words(definition)
+    )
+
+
+def primary_key_definitions(ddl: str, dialect: str) -> list[str]:
+    """Return definitions for columns declared in inline or table-level primary keys."""
     columns = {}
     primary_columns = set()
-    for segment in table_segments(normalized):
-        table_pk = re.match(rf"^(?:constraint\s+(?:{IDENTIFIER}\s+)?)?primary\s+key\s*\(([^)]*)\)", segment)
+    for segment in table_segments(ddl):
+        table_pk = re.match(rf"^(?:constraint\s+(?:{IDENTIFIER}\s+)?)?primary\s+key\s*\(", segment, re.I)
         if table_pk:
-            for column in comma_separated(table_pk.group(1)):
+            for column in comma_separated(segment[table_pk.end():]):
                 name = re.match(IDENTIFIER, column)
                 if name:
-                    primary_columns.add(name.group().strip('`"'))
+                    primary_columns.add(column_key(name.group(), dialect))
             continue
         column = re.match(rf"^({IDENTIFIER})\s+(.+)$", segment, re.S)
         if not column:
             continue
-        name, definition = column.groups()
-        name = name.strip('`"')
-        columns[name] = definition
-        if re.search(r"\bprimary\s+key\b", definition):
+        identifier, definition = column.groups()
+        name = column_key(identifier, dialect)
+        columns[name] = definition.lower()
+        if has_top_level_clause(definition, "primary", r"primary\s+key\b"):
             primary_columns.add(name)
     return [definition for name, definition in columns.items() if name in primary_columns]
 
@@ -380,10 +455,13 @@ def drops_column(normalized: str, dialect: str) -> bool:
         return False
     # An action starts after the table name or a top-level comma.
     exclusions = "index|key|primary|foreign|partition|constraint" if dialect == "mysql" else "constraint"
+    actions = comma_separated(normalized[table.end():])
+    if dialect == "postgresql":
+        actions = [action for action in actions if not MYSQL_DROP_TABLE_ACTION.match(action)]
     return any(re.match(
         rf"^drop\s+(?:column\s+(?:if\s+exists\s+)?{IDENTIFIER}|(?!(?:{exclusions})\b)(?:if\s+exists\s+)?{IDENTIFIER})",
         action,
-    ) for action in comma_separated(normalized[table.end():]))
+    ) for action in actions)
 
 
 def cte_bodies(masked: str) -> list[tuple[int, int]]:
@@ -448,9 +526,15 @@ def inspect_statement(file: str, line: int, statement: str, dialect: str, *, mys
             if "limit" in tail_names:
                 add(findings, file, line, f"{'MYSQL' if dialect == 'mysql' else 'POSTGRESQL'}-UPD-001", dialect, "Top-level UPDATE LIMIT is prohibited; use a stable-key batch design", statement)
 
-    if re.search(r"\bforeign\s+key\b|\breferences\s+[a-z0-9_`\"]+\s*\(", normalized):
+    if re.search(r"(?<!\bdrop )\bforeign\s+key\b|\breferences\s+[a-z0-9_`\"]+\s*\(", normalized):
         add(findings, file, line, split_rule_id(dialect, "G.TAB.04"), dialect, "Foreign keys are prohibited", statement)
     create_table = CREATE_TABLE_RE.match(normalized)
+    alter_table = re.match(r"^alter\s+table\b", normalized)
+    ddl = ""
+    if create_table or alter_table:
+        ddl = mask_literals_and_comments(
+            statement, dialect, mysql_no_backslash_escapes=mysql_no_backslash_escapes, preserve_identifiers=True,
+        ).strip()
     if create_table:
         after_table = normalized[create_table.end():].lstrip()
         if not re.match(r"^if\s+not\s+exists\b", after_table):
@@ -459,11 +543,13 @@ def inspect_statement(file: str, line: int, statement: str, dialect: str, *, mys
             add(findings, file, line, split_rule_id(dialect, "G.TAB.16"), dialect, "Every table must define a primary key", statement)
     if re.match(r"^drop\s+table\b", normalized) and not re.match(r"^drop\s+table\s+if\s+exists\b", normalized):
         add(findings, file, line, split_rule_id(dialect, "G.UPG.11"), dialect, "DROP TABLE must use IF EXISTS", statement)
-    if re.match(r"^alter\s+table\b", normalized):
-        ddl = mask_literals_and_comments(statement, dialect, mysql_no_backslash_escapes=mysql_no_backslash_escapes, preserve_identifiers=True).strip().lower()
-        if drops_column(ddl, dialect):
+    if alter_table:
+        if drops_column(ddl.lower(), dialect):
             add(findings, file, line, split_rule_id(dialect, "G.UPG.03"), dialect, "Dropping columns is prohibited", statement)
-        if re.search(r"\b(?:modify|change)\s+(?:column\s+)?|\balter\s+column\s+[a-z0-9_\"]+\s+(?:set\s+data\s+)?type\b", normalized):
+        mysql_type_change = dialect == "mysql" and re.search(r"\b(?:modify|change)\s+(?:column\s+)?", normalized)
+        if mysql_type_change or re.search(
+            r'\balter\s+column\s+[a-z0-9_"]+\s+(?:set\s+data\s+)?type\b', normalized,
+        ):
             add(findings, file, line, f"{'MYSQL' if dialect == 'mysql' else 'POSTGRESQL'}-UPG-005", dialect, "Direct column type modification requires a compatible expand-contract plan", statement)
         if re.search(r"\balter\s+column\s+[a-z0-9_\"]+\s+set\s+not\s+null\b", normalized):
             add(findings, file, line, f"{'MYSQL' if dialect == 'mysql' else 'POSTGRESQL'}-UPG-008", dialect, "Changing an existing column to NOT NULL is prohibited", statement)
@@ -483,14 +569,15 @@ def inspect_statement(file: str, line: int, statement: str, dialect: str, *, mys
         add(findings, file, line, split_rule_id(dialect, "G.TXN.01"), dialect, "Explicit transaction isolation levels are prohibited", statement)
 
     if create_table:
-        ddl = mask_literals_and_comments(statement, dialect, mysql_no_backslash_escapes=mysql_no_backslash_escapes, preserve_identifiers=True).strip().lower()
-        primary_keys = primary_key_definitions(ddl)
+        primary_keys = primary_key_definitions(ddl, dialect)
         if dialect == "mysql":
             if any(re.search(r"\bauto_increment\b", definition) for definition in primary_keys):
                 add(findings, file, line, "MYSQL-PK-001", dialect, "AUTO_INCREMENT primary keys are prohibited", statement)
-        elif any(re.match(r"(?:smallserial|serial|bigserial)\b", definition) or re.search(
-            r"\bgenerated\s+(?:always|by\s+default)\s+as\s+identity\b", definition,
-        ) for definition in primary_keys):
+        elif any(
+            re.match(r"(?:smallserial|serial|bigserial)\b(?!\s*\.)", definition)
+            or has_top_level_clause(definition, "generated", r"generated\s+(?:always|by\s+default)\s+as\s+identity\b")
+            for definition in primary_keys
+        ):
             add(findings, file, line, "POSTGRESQL-PK-001", dialect, "Serial/identity primary keys are prohibited", statement)
         candidate_type = (
             r"(?:char(?:acter)?|varchar|text|tinytext|mediumtext|longtext|varbinary)\b|binary\s*\((?!\s*16\s*\))"
@@ -507,8 +594,11 @@ def inspect_statement(file: str, line: int, statement: str, dialect: str, *, mys
         charsets = re.findall(r"\b(?:default\s+)?(?:character\s+set|charset)\s*=?\s*([a-z0-9_]+)", normalized)
         if any(charset != "utf8mb4" for charset in charsets):
             add(findings, file, line, "MYSQL-ENC-001", dialect, "Verify the non-utf8mb4 character set and any approved exception", statement, review=True)
-    elif re.search(r"\bengine\s*=|\b(?:default\s+)?charset\s*=|\bauto_increment\b|`", normalized):
-        add(findings, file, line, "POSTGRESQL-TAB-001", dialect, "MySQL-only table syntax is invalid in PostgreSQL", statement)
+    elif "`" in normalized or has_mysql_table_options(ddl.lower()):
+        add(
+            findings, file, line, "POSTGRESQL-TAB-001", dialect,
+            "Review MySQL-specific table syntax for PostgreSQL compatibility", statement, review=True,
+        )
     return findings
 
 

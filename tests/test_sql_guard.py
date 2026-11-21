@@ -43,9 +43,78 @@ class SqlGuardTest(unittest.TestCase):
         sql = "create table if not exists t_user (id binary(16) not null, primary key(id)) engine=InnoDB default charset=utf8mb4;"
         self.assertEqual(set(), self.rule_ids(sql, "mysql"))
 
-    def test_postgresql_rejects_mysql_table_options(self) -> None:
-        sql = "create table if not exists t_user (id uuid primary key) engine=InnoDB;"
-        self.assertIn("POSTGRESQL-TAB-001", self.rule_ids(sql, "postgresql"))
+    def test_postgresql_table_syntax_ignores_ordinary_identifiers(self) -> None:
+        for sql in (
+            "select id from import_batch where engine = 'ffmpeg' and auto_increment = true;",
+            "update import_batch set engine = 'ffmpeg' where id = 42;",
+            "select engine, charset, auto_increment from import_batch;",
+            "create view enabled as select id from t where auto_increment = true;",
+            "create table if not exists inventory (id uuid primary key, auto_increment boolean, "
+            "engine text check (engine = 'x'), charset text check (charset = 'utf8'));",
+            "create table if not exists inventory (id uuid primary key, value custom.auto_increment, "
+            "flag int default case when true then auto_increment '1' else 0 end) using engine tablespace charset;",
+            "alter table café alter column flag set default engine 'on' = engine 'off';",
+            "alter table inventory add column auto_increment boolean;",
+            "alter table inventory add index varchar(10);",
+            "alter table inventory add column engine text constraint auto_increment check (engine = 'x');",
+            'create table if not exists "engine" (id uuid primary key, "auto_increment" boolean);',
+            'select id from "legacy`name" where id = 1;',
+        ):
+            with self.subTest(sql=sql):
+                self.assertNotIn("POSTGRESQL-TAB-001", self.rule_ids(sql, "postgresql"))
+
+    def test_postgresql_warns_on_mysql_table_syntax(self) -> None:
+        for sql in (
+            "create table if not exists t_user (id uuid primary key) engine=InnoDB;",
+            "create table if not exists t_user (id int primary key) engine InnoDB;",
+            "create table if not exists t_user (id int primary key) default character set utf8mb4;",
+            "create table if not exists t_user (id bigint comment 'identity' auto_increment primary key);",
+            "create table if not exists t_user (id bigint primary key) auto_increment 1024;",
+            "alter table café add column status int, engine=InnoDB;",
+            "alter table t_user auto_increment = 1024;",
+            "alter table t_user add (id bigint auto_increment primary key, quantity bigint);",
+            "alter table t_user add column total bigint generated always as (0) stored, "
+            "add column id bigint auto_increment primary key;",
+            "alter table t_user modify column name varchar(64) not null;",
+            "alter table t_user change column old_name new_name varchar(64);",
+            "alter table t_user convert to character set utf8mb4;",
+            "alter table t_user add column name varchar(20) character set utf8mb4;",
+            "alter table t_user drop index idx_user;",
+            "alter table t_user drop foreign key fk_user;",
+            "alter table t_user drop primary key;",
+            "alter table t_user drop partition p1;",
+            "alter table t_user add index idx_user (id);",
+            "create table if not exists t_user (id int unsigned primary key);",
+            "create table if not exists t_user (id int primary key) row_format=dynamic;",
+            "create table if not exists t_user (id int primary key) comment='users';",
+            "select id from `inventory`;",
+        ):
+            with self.subTest(sql=sql):
+                _, findings = sql_guard.inspect("table.sql", sql, "postgresql")
+                self.assertEqual([("POSTGRESQL-TAB-001", "warn")], [
+                    (item.rule_id, item.gate) for item in findings
+                ])
+
+    def test_postgresql_drop_column_named_index_is_still_blocked(self) -> None:
+        for action in ("drop index cascade", "drop column index", "drop index idx_user, drop column legacy"):
+            with self.subTest(action=action):
+                _, findings = sql_guard.inspect("table.sql", f"alter table t_user {action};", "postgresql")
+                self.assertIn(("POSTGRESQL-GUPG-003", "block"), [
+                    (item.rule_id, item.gate) for item in findings
+                ])
+
+    def test_adding_postgresql_foreign_key_is_still_blocked(self) -> None:
+        sql = "alter table t_child add constraint fk_parent foreign key (parent_id) references t_parent(id);"
+        _, findings = sql_guard.inspect("table.sql", sql, "postgresql")
+        self.assertEqual([("POSTGRESQL-GTAB-004", "block")], [
+            (item.rule_id, item.gate) for item in findings
+        ])
+
+    def test_auto_detects_table_syntax_by_position(self) -> None:
+        pg = "create table if not exists t_user (id uuid primary key, engine text check (engine = 'x'));"
+        mysql = "create table if not exists t_user (id int primary key) engine innodb;"
+        self.assertEqual("postgresql", sql_guard.detect_dialect(pg))
+        self.assertEqual("mysql", sql_guard.detect_dialect(mysql))
 
     def test_postgresql_index_concurrency_remains_hybrid(self) -> None:
         self.assertNotIn("POSTGRESQL-DDL-001", self.rule_ids("create index idx_user_name on t_user(name);", "postgresql"))
@@ -100,12 +169,46 @@ class SqlGuardTest(unittest.TestCase):
         sql = "alter table t_user alter column name type varchar(64); alter table t_user alter column name set not null;"
         self.assertEqual({"POSTGRESQL-UPG-005", "POSTGRESQL-UPG-008"}, self.rule_ids(sql, "postgresql"))
 
-    def test_postgresql_table_level_serial_and_identity_pk_are_detected(self) -> None:
+    def test_postgresql_serial_and_identity_primary_keys_block(self) -> None:
         for sql in (
+            "create table if not exists t_user (id smallserial primary key);",
             "create table if not exists t_user (id bigserial, primary key (id));",
             "create table if not exists t_user (id bigint generated always as identity, constraint pk_user primary key (id));",
+            'CREATE TABLE IF NOT EXISTS t_user (tenant_id bigint, "Ledger ID)" bigint GENERATED BY DEFAULT AS IDENTITY, '
+            'CONSTRAINT "PK" PRIMARY KEY (tenant_id, "Ledger ID)"));',
         ):
-            self.assertIn("POSTGRESQL-PK-001", self.rule_ids(sql, "postgresql"))
+            with self.subTest(sql=sql):
+                _, findings = sql_guard.inspect("table.sql", sql, "postgresql")
+                self.assertEqual([("POSTGRESQL-PK-001", "block")], [
+                    (item.rule_id, item.gate) for item in findings
+                ])
+
+    def test_postgresql_only_blocks_auto_increment_on_primary_keys(self) -> None:
+        for sql in (
+            "create table if not exists t_user (id uuid primary key, auto_increment boolean);",
+            "create table if not exists t_user (id uuid primary key, sequence_no bigserial);",
+            'create table if not exists t_user (id uuid primary key, seq bigint generated always as identity '
+            'constraint "primary key" unique);',
+            'create table if not exists t_user (id bigint primary key constraint "generated always as identity" unique);',
+            'create table if not exists t_user (id uuid, "ID" bigint generated always as identity, primary key (id));',
+            'create table if not exists t_user (id uuid, "entry""id" bigserial, primary key (id));',
+        ):
+            with self.subTest(sql=sql):
+                self.assertEqual(set(), self.rule_ids(sql, "postgresql"))
+
+    def test_postgresql_primary_key_gate_exit_status(self) -> None:
+        for columns, code, expected_rules in (
+            ("id uuid primary key, auto_increment boolean", 0, []),
+            ("id bigint generated always as identity primary key, auto_increment boolean", 1, ["POSTGRESQL-PK-001"]),
+        ):
+            with self.subTest(columns=columns):
+                run = subprocess.run(
+                    [sys.executable, str(MODULE_PATH), "--dialect", "postgresql", "--format", "json", "-"],
+                    input=f"create table if not exists t_user ({columns});",
+                    text=True, capture_output=True, check=False,
+                )
+                self.assertEqual(code, run.returncode, run.stderr)
+                self.assertEqual(expected_rules, [item["rule_id"] for item in json.loads(run.stdout)["findings"]])
 
     def test_temporary_and_unlogged_tables_receive_table_checks(self) -> None:
         for sql in ("create temporary table t_tmp (id bigint);", "create unlogged table t_tmp (id bigint);"):
@@ -218,7 +321,10 @@ class SqlGuardTest(unittest.TestCase):
         cases = {
             "mysql": ("create table if not exists t_user (id int primary key) engine=MyISAM default charset=latin1; xa start 'x';",
                       {"MYSQL-TAB-001", "MYSQL-ENC-001", "MYSQL-TXN-007"}),
-            "postgresql": ("prepare transaction 'x';", {"POSTGRESQL-TXN-007"}),
+            "postgresql": (
+                "prepare transaction 'x'; alter table t_user engine=InnoDB;",
+                {"POSTGRESQL-TXN-007", "POSTGRESQL-TAB-001"},
+            ),
         }
         for dialect, (sql, expected) in cases.items():
             for statement, code in ((sql, 0), (sql + " delete from t_user;", 1)):
