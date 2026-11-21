@@ -251,7 +251,10 @@ def add(findings: list[Finding], file: str, line: int, rule_id: str, dialect: st
     findings.append(Finding(file, line, rule_id, gate, dialect, message, compact(statement)))
 
 
-UNQUOTED_IDENTIFIER = r"[^\W\d][\w$]*"
+# PostgreSQL's lexer permits high-bit bytes in bare identifiers, including
+# UTF-8 combining characters that Python's \w excludes.
+UNQUOTED_IDENTIFIER = r"[a-zA-Z_\u0080-\U0010ffff][a-zA-Z0-9_$\u0080-\U0010ffff]*"
+ASCII_LOWERCASE = str.maketrans("ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz")
 
 
 def top_level_words(sql: str) -> list[tuple[str, int, int]]:
@@ -414,8 +417,11 @@ def has_mysql_table_options(ddl: str) -> bool:
 
 
 def column_key(identifier: str, dialect: str) -> str:
-    if dialect == "postgresql" and identifier.startswith('"'):
-        return identifier[1:-1].replace('""', '"')
+    if dialect == "postgresql":
+        if identifier.startswith('"'):
+            return identifier[1:-1].replace('""', '"')
+        # The PostgreSQL profile uses UTF-8, where bare names fold ASCII only.
+        return identifier.strip("`").translate(ASCII_LOWERCASE)
     return identifier.strip('`"').lower()
 
 

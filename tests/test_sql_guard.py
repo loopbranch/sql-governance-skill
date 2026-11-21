@@ -196,6 +196,19 @@ class SqlGuardTest(unittest.TestCase):
             with self.subTest(sql=sql):
                 self.assertEqual(set(), self.rule_ids(sql, "postgresql"))
 
+    def test_postgresql_utf8_identifiers_preserve_gate_results(self) -> None:
+        for sql, expected in (
+            ("CREATE TABLE IF NOT EXISTS cafe\u0301 (id BIGSERIAL PRIMARY KEY);",
+             [("POSTGRESQL-PK-001", "block")]),
+            ("ALTER TABLE public.q\u0301 ENGINE=InnoDB;",
+             [("POSTGRESQL-TAB-001", "warn")]),
+            ("CREATE TABLE IF NOT EXISTS café (cafe\u0301 BIGSERIAL, café UUID, PRIMARY KEY (café));", []),
+            ("CREATE TABLE IF NOT EXISTS café (café BIGSERIAL, cafÉ UUID, PRIMARY KEY (CAFÉ));", []),
+        ):
+            with self.subTest(sql=sql):
+                _, findings = sql_guard.inspect("table.sql", sql, "postgresql")
+                self.assertEqual(expected, [(item.rule_id, item.gate) for item in findings])
+
     def test_postgresql_primary_key_gate_exit_status(self) -> None:
         for columns, code, expected_rules in (
             ("id uuid primary key, auto_increment boolean", 0, []),
