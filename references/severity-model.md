@@ -20,7 +20,8 @@
 - `pass`：适用 Block 均已验证通过，Warn/Info 已记录。
 - `fail`：存在任一未整改 Block。
 - `confirmation-required`：需要人工确认但确认缺失、模糊、过期或与当前范围不一致；按 Block 处理。
+- `dialect-required`：无法确认 MySQL 或 PostgreSQL；只可报告公共规则，方言合规结论按 Block 处理。
 - `not-applicable`：有证据表明规则不适用。
 - `exception`：仅当规则允许例外，且批准范围、理由、批准人/角色、有效期和链接齐全。
 
-报告中的总门禁结论按最严重项聚合：Block > Warn > Info > Pass。
+报告中的总门禁结论按最严重项聚合：Block（含 confirmation-required、dialect-required） > Warn > Info > Pass。

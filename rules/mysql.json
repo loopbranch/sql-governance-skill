@@ -1,0 +1,71 @@
+{
+  "schema_version": "2.0.0",
+  "dialect": "mysql",
+  "description": "MySQL-specific rules. Apply after common.json; never apply these syntax requirements to PostgreSQL.",
+  "rules": [
+    {
+      "id": "MYSQL-ENC-001", "source": ["G.DBS.01", "G.DBS.05", "G.TAB.05"], "name": "MySQL 使用 utf8mb4 和统一排序规则",
+      "level": "mandatory", "gate": "block", "scope": ["encoding", "collation", "ddl"], "dialects": ["mysql"],
+      "condition": "客户端与数据库、表、字符字段统一使用 utf8mb4。MySQL 5.7 默认排序规则采用 utf8mb4_general_ci；表不得擅自覆盖，字段级 bin/unicode 例外必须评审。",
+      "check": {"kind": "hybrid", "detector": "解析 DEFAULT CHARSET、CHARACTER SET、COLLATE 并核对连接和实例变量。"},
+      "examples": {"positive": "engine=InnoDB default charset=utf8mb4", "negative": "default charset=utf8 或在表级覆盖不同 COLLATE"},
+      "remediation": "统一为 utf8mb4；例外记录排序语义和索引影响。", "confirmation_required": true
+    },
+    {
+      "id": "MYSQL-TAB-001", "source": ["G.TAB.01"], "name": "MySQL 表使用 InnoDB",
+      "level": "mandatory", "gate": "block", "scope": ["table", "ddl"], "dialects": ["mysql"],
+      "condition": "新建 MySQL 表必须使用 InnoDB，或提供实例默认引擎为 InnoDB 的证据。",
+      "check": {"kind": "hybrid", "detector": "解析 ENGINE；缺失时核对 default_storage_engine。"},
+      "examples": {"positive": "engine=InnoDB", "negative": "engine=MyISAM"},
+      "remediation": "改用 InnoDB 并评估事务、锁和迁移时间。", "confirmation_required": true
+    },
+    {
+      "id": "MYSQL-TIME-001", "source": ["G.TAB.15"], "name": "MySQL 时间类型按时区语义选择",
+      "level": "mandatory", "gate": "block", "scope": ["column", "time"], "dialects": ["mysql"],
+      "condition": "不需要会话时区转换的业务本地时间使用 DATETIME；表示绝对时间点并明确依赖会话时区转换时才使用 TIMESTAMP，同时评估 MySQL 5.7 范围、精度和分区限制。",
+      "check": {"kind": "manual", "detector": "核对业务语义、会话时区、时间范围、精度和分区键。"},
+      "examples": {"positive": "created_at datetime(3) 表示录入的业务本地时间", "negative": "未定义时区语义就混用 datetime、timestamp、timestamp(6)"},
+      "remediation": "统一字段语义与类型，记录服务和会话时区策略。", "confirmation_required": true
+    },
+    {
+      "id": "MYSQL-IDX-001", "source": ["G.IDX.06", "G.IDX.07"], "name": "MySQL 长字符串使用受控前缀索引",
+      "level": "prohibition", "gate": "block", "scope": ["index", "performance"], "dialects": ["mysql"],
+      "condition": "TEXT/BLOB 和超长 VARCHAR 禁止直接建立普通全长索引；VARCHAR 长度大于 50 时按查询需求评估前缀索引，累计索引长度建议不超过 200 字节。",
+      "check": {"kind": "hybrid", "detector": "结合列类型、字符集字节数、索引前缀和真实选择度判断。"},
+      "examples": {"positive": "index idx_title(title(32)) 并验证选择度", "negative": "index idx_body(body) 直接索引长文本"},
+      "remediation": "使用合适前缀、生成列或全文索引并用 EXPLAIN 验证。", "confirmation_required": true
+    },
+    {
+      "id": "MYSQL-PK-001", "source": ["G.IDX.11"], "name": "MySQL 禁止自增主键并高效存储 UUID",
+      "level": "prohibition", "gate": "block", "scope": ["primary-key", "sharding"], "dialects": ["mysql"],
+      "condition": "新表主键不得使用 AUTO_INCREMENT；有序 UUID 优先 UUIDv7，并以 BINARY(16) 存储，不使用 CHAR/VARCHAR UUID 文本。",
+      "check": {"kind": "static", "detector": "解析主键列的 AUTO_INCREMENT、类型和长度。"},
+      "examples": {"positive": "id binary(16) not null primary key", "negative": "id bigint auto_increment primary key"},
+      "remediation": "使用分布式有序 ID；UUID 转换为 16 字节存储。", "confirmation_required": true
+    },
+    {
+      "id": "MYSQL-DDL-001", "source": ["G.UPG.12", "G.UPG.13"], "name": "MySQL 在线低峰创建索引",
+      "level": "mandatory", "gate": "block", "scope": ["index", "migration"], "dialects": ["mysql"],
+      "condition": "生产索引变更必须验证目标版本支持的 ALGORITHM/LOCK 行为，优先 ALGORITHM=INPLACE、LOCK=NONE 或已批准的在线变更工具，并在低峰执行。",
+      "check": {"kind": "manual", "detector": "核对版本、DDL 计划、锁时长、监控终止阈值和回滚。"},
+      "examples": {"positive": "在同版本副本验证 ALGORITHM=INPLACE, LOCK=NONE", "negative": "高峰期直接执行可能 COPY/锁表的 ALTER TABLE"},
+      "remediation": "补充兼容性演练和低峰窗口；不支持在线方式时走 DBA 评审。", "confirmation_required": true
+    },
+    {
+      "id": "MYSQL-PART-001", "source": ["G.TAB.18", "G.TAB.19", "G.UPG.04"], "name": "MySQL 分区按本地索引能力管理",
+      "level": "mandatory", "gate": "block", "scope": ["partition", "index"], "dialects": ["mysql"],
+      "condition": "分区表必须验证分区裁剪、唯一键包含分区键等 MySQL 限制；不得套用其他数据库的全局索引语法。分区删除前核对索引、备份和回滚。",
+      "check": {"kind": "manual", "detector": "核对 SHOW CREATE TABLE、EXPLAIN PARTITIONS、唯一键和清理方案。"},
+      "examples": {"positive": "EXPLAIN PARTITIONS 证明查询裁剪", "negative": "假设 MySQL 存在可单独 UPDATE 的全局索引"},
+      "remediation": "按目标 MySQL 版本能力重写分区/索引方案。", "confirmation_required": true
+    },
+    {
+      "id": "MYSQL-UPD-001", "source": ["G.UPD.03", "G.DEL.02"], "name": "MySQL 禁止用 LIMIT 掩盖批量更新风险",
+      "level": "prohibition", "gate": "block", "scope": ["update", "data-fix"], "dialects": ["mysql"],
+      "condition": "UPDATE 不得直接用 LIMIT 控制修改行数；批处理必须使用稳定主键范围、明确顺序、小事务和可恢复进度。",
+      "check": {"kind": "static", "detector": "解析 UPDATE 顶层 LIMIT。"},
+      "examples": {"positive": "按 id 范围分批提交", "negative": "update t_order set status=? limit 1000"},
+      "remediation": "改为稳定键范围批处理并进入数据确认流程。", "confirmation_required": true
+    }
+  ]
+}

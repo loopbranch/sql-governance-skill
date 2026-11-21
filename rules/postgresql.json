@@ -1,0 +1,71 @@
+{
+  "schema_version": "2.0.0",
+  "dialect": "postgresql",
+  "description": "PostgreSQL-specific rules. Apply after common.json; never apply MySQL-only syntax.",
+  "rules": [
+    {
+      "id": "POSTGRESQL-ENC-001", "source": ["G.DBS.01", "G.DBS.05", "G.TAB.05"], "name": "PostgreSQL 使用 UTF8 并评审 collation",
+      "level": "mandatory", "gate": "block", "scope": ["encoding", "collation", "ddl"], "dialects": ["postgresql"],
+      "condition": "server_encoding 与 client_encoding 使用 UTF8。数据库默认 collation 由部署标准统一；字段/索引使用 ICU、C/POSIX 或非确定性排序时单独评审，不得照搬 utf8mb4 名称。",
+      "check": {"kind": "hybrid", "detector": "核对 pg_database、pg_collation、provider、deterministic 和连接配置。"},
+      "examples": {"positive": "server_encoding=UTF8, client_encoding=UTF8", "negative": "在 PostgreSQL DDL 写 DEFAULT CHARSET=utf8mb4"},
+      "remediation": "统一 UTF8 和部署 collation；例外验证索引与跨环境一致性。", "confirmation_required": true
+    },
+    {
+      "id": "POSTGRESQL-TAB-001", "source": ["G.TAB.01"], "name": "PostgreSQL 不使用 MySQL ENGINE 子句",
+      "level": "mandatory", "gate": "block", "scope": ["table", "ddl"], "dialects": ["postgresql"],
+      "condition": "普通表使用 PostgreSQL 原生 table access method；DDL 禁止 ENGINE=InnoDB/MyISAM。自定义 access method 或 storage parameter 必须评审。",
+      "check": {"kind": "static", "detector": "PostgreSQL 模式下发现 ENGINE= 或 MySQL 表选项即命中。"},
+      "examples": {"positive": "create table if not exists t_order (...);", "negative": "create table t_order (...) engine=InnoDB;"},
+      "remediation": "移除 MySQL 表选项；特殊存储参数按 PostgreSQL 能力评审。", "confirmation_required": true
+    },
+    {
+      "id": "POSTGRESQL-TIME-001", "source": ["G.TAB.15"], "name": "PostgreSQL 时间类型按时区语义选择",
+      "level": "mandatory", "gate": "block", "scope": ["column", "time"], "dialects": ["postgresql"],
+      "condition": "绝对时间点使用 timestamp with time zone（timestamptz）；不随时区转换的业务本地时间使用 timestamp without time zone，不得照搬 MySQL TIMESTAMP 的范围与转换结论。",
+      "check": {"kind": "manual", "detector": "核对字段语义、序列化格式、会话 TimeZone 和展示转换。"},
+      "examples": {"positive": "event_instant timestamptz；local_time timestamp without time zone", "negative": "未定义语义而混用 timestamp/timestamptz"},
+      "remediation": "按绝对时间点和本地时间拆分语义，并统一 UTC/展示策略。", "confirmation_required": true
+    },
+    {
+      "id": "POSTGRESQL-IDX-001", "source": ["G.IDX.06", "G.IDX.07"], "name": "PostgreSQL 长文本使用表达式或专用索引",
+      "level": "prohibition", "gate": "block", "scope": ["index", "performance"], "dialects": ["postgresql"],
+      "condition": "不得使用 MySQL column(prefix_length) 语法。长文本按查询选择 left(column,n) 表达式索引、GIN/GiST、全文检索或 pg_trgm，并评估索引大小和写放大。",
+      "check": {"kind": "hybrid", "detector": "解析索引表达式和 operator class，并结合查询谓词判断。"},
+      "examples": {"positive": "create index ... on t_doc (left(title, 32));", "negative": "create index ... on t_doc (title(32));"},
+      "remediation": "改用 PostgreSQL 表达式或专用索引并用 EXPLAIN 验证。", "confirmation_required": true
+    },
+    {
+      "id": "POSTGRESQL-PK-001", "source": ["G.IDX.11"], "name": "PostgreSQL 使用原生 uuid 存储有序 UUID",
+      "level": "prohibition", "gate": "block", "scope": ["primary-key", "sharding"], "dialects": ["postgresql"],
+      "condition": "新表不得使用 serial/bigserial 或 GENERATED AS IDENTITY 作为分布式主键；有序 UUID 使用原生 uuid 类型，不使用 bytea、char(36) 或 MySQL BINARY(16)。",
+      "check": {"kind": "static", "detector": "解析主键列的 serial/bigserial/identity 和 uuid 类型。"},
+      "examples": {"positive": "id uuid not null primary key", "negative": "id bigserial primary key；id binary(16) primary key"},
+      "remediation": "使用应用或平台生成的有序 UUID，并以 uuid 类型存储。", "confirmation_required": true
+    },
+    {
+      "id": "POSTGRESQL-DDL-001", "source": ["G.UPG.12", "G.UPG.13"], "name": "PostgreSQL 生产索引使用 CONCURRENTLY",
+      "level": "mandatory", "gate": "block", "scope": ["index", "migration"], "dialects": ["postgresql"],
+      "condition": "生产大表创建或重建普通索引必须评估并优先 CREATE/REINDEX INDEX CONCURRENTLY；该操作不得位于事务块。约束隐式索引等不支持场景单独评审。",
+      "check": {"kind": "hybrid", "detector": "解析 CONCURRENTLY 并检查迁移框架是否包裹事务。"},
+      "examples": {"positive": "create index concurrently idx_order_created on t_order(created_at);", "negative": "begin; create index concurrently ...; commit;"},
+      "remediation": "拆出非事务步骤，监控 invalid index 并准备清理/重试。", "confirmation_required": true
+    },
+    {
+      "id": "POSTGRESQL-PART-001", "source": ["G.TAB.18", "G.TAB.19", "G.UPG.04"], "name": "PostgreSQL 分区索引按父子结构管理",
+      "level": "mandatory", "gate": "block", "scope": ["partition", "index"], "dialects": ["postgresql"],
+      "condition": "PostgreSQL 没有可直接 UPDATE 的全局索引；分区变更必须核对父索引、各子分区索引、attach/detach、裁剪效果和版本限制。",
+      "check": {"kind": "manual", "detector": "核对 pg_partition_tree、pg_index、EXPLAIN 和维护步骤。"},
+      "examples": {"positive": "逐分区建索引后 attach 到父索引并验证裁剪", "negative": "执行不存在的 update global indexes 语法"},
+      "remediation": "按 PostgreSQL 父子分区索引能力重写迁移。", "confirmation_required": true
+    },
+    {
+      "id": "POSTGRESQL-UPD-001", "source": ["G.UPD.03", "G.DEL.02"], "name": "PostgreSQL 批处理使用稳定键 CTE",
+      "level": "prohibition", "gate": "block", "scope": ["update", "data-fix"], "dialects": ["postgresql"],
+      "condition": "不得假设 PostgreSQL 支持 UPDATE ... LIMIT。批处理通过稳定主键 CTE/子查询选择确定行集，使用小事务、锁策略和可恢复进度。",
+      "check": {"kind": "hybrid", "detector": "UPDATE LIMIT 直接阻断；CTE 批处理核对稳定排序和并发锁。"},
+      "examples": {"positive": "with batch as (select id ... order by id limit 1000) update ... from batch", "negative": "update t_order set status=? limit 1000"},
+      "remediation": "使用稳定主键选批的 CTE 并进入数据确认流程。", "confirmation_required": true
+    }
+  ]
+}
