@@ -122,7 +122,7 @@
       "source": [
         "G.IDX.11"
       ],
-      "name": "PostgreSQL 使用原生 uuid 存储有序 UUID",
+      "name": "PostgreSQL 自增主键限制与 UUID 存储",
       "level": "prohibition",
       "gate": "block",
       "scope": [
@@ -132,15 +132,15 @@
       "dialects": [
         "postgresql"
       ],
-      "condition": "新表不得使用 serial/bigserial 或 GENERATED AS IDENTITY 作为分布式主键；UUID 主键必须使用原生 uuid。文本或二进制候选列需结合数据模型、写入代码或生成方式确认 UUID 语义；业务编码可以按业务需要选择类型。",
+      "condition": "新表的主键列不得使用 smallserial、serial、bigserial 或 GENERATED AS IDENTITY。此自增限制仅适用于内联、表级或复合主键中的列。UUID 主键必须使用原生 uuid。文本或二进制候选列需结合数据模型、写入代码或生成方式确认 UUID 语义；业务编码可以按业务需要选择类型。",
       "check": {
         "kind": "hybrid",
         "detector": "识别内联、表级和复合主键中的自增定义并阻断；对可能存储 UUID 的列提示复核业务语义。",
         "review_gate": "warn"
       },
       "examples": {
-        "positive": "id uuid not null primary key",
-        "negative": "模型声明为 UUID 的主键以 text、varchar(40) 或 bytea 存储"
+        "positive": "id uuid primary key, auto_increment boolean, sequence_no bigint generated always as identity",
+        "negative": "id bigint generated always as identity primary key"
       },
       "remediation": "使用应用或平台生成的有序 UUID，并以 uuid 类型存储。",
       "confirmation_required": true
