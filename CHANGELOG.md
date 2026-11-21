@@ -6,6 +6,7 @@
 
 ### Fixed
 
+- 支持 PostgreSQL UTF-8 裸标识符中的组合字符，保留主键列名的非 ASCII 大小写和 Unicode 写法差异。
 - PostgreSQL 的列名、类型及表达式中的 `engine`、`charset` 和 `auto_increment` 可以通过同名 MySQL 表语法筛查。
 - PostgreSQL 模式发现 MySQL 表选项、列属性、MySQL 特有的 `ALTER TABLE` 子句或反引号标识符时输出 `POSTGRESQL-TAB-001` Warn，提示复核数据库兼容性。
 - PostgreSQL 自增门禁按实际主键约束关联列，普通同名列、非主键自增列和带引号的约束名称可以通过。
