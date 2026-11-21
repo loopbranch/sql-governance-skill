@@ -32,7 +32,7 @@ class SqlGuardTest(unittest.TestCase):
 
     def test_destructive_alter_variants_are_detected(self) -> None:
         sql = "alter table t_user modify name varchar(32) not null; alter table t_user add column tenant_id bigint not null;"
-        self.assertEqual({"G.UPG.05", "G.UPG.07"}, self.rule_ids(sql, "mysql"))
+        self.assertEqual({"MYSQL-UPG-005", "MYSQL-UPG-007", "MYSQL-UPG-008"}, self.rule_ids(sql, "mysql"))
 
     def test_mysql_valid_create_table_passes_static_checks(self) -> None:
         sql = "create table if not exists t_user (id binary(16) not null, primary key(id)) engine=InnoDB default charset=utf8mb4;"
@@ -55,8 +55,8 @@ class SqlGuardTest(unittest.TestCase):
             "select a.id from t_a a full join t_b b on b.id=a.id;",
             "select a.id from t_a a full outer join t_b b on b.id=a.id;",
         ):
-            self.assertIn("G.SEL.08", self.rule_ids(sql, "mysql"))
-            self.assertIn("G.SEL.08", self.rule_ids(sql, "postgresql"))
+            self.assertIn("MYSQL-SEL-008", self.rule_ids(sql, "mysql"))
+            self.assertIn("POSTGRESQL-SEL-008", self.rule_ids(sql, "postgresql"))
 
     def test_update_word_outside_main_dml_is_not_misclassified(self) -> None:
         sql = "select id from t_user where id=1 for update;"
@@ -72,13 +72,13 @@ class SqlGuardTest(unittest.TestCase):
         rules = self.rule_ids('update t_user set "where" = 1;', "postgresql")
         self.assertIn("G.UPD.01", rules)
         rules = self.rule_ids("update t_user set `limit` = 1 where id = 2;", "mysql")
-        self.assertNotIn("G.UPD.03", rules)
+        self.assertNotIn("POSTGRESQL-UPD-001", rules)
 
     def test_update_clauses_only_apply_at_top_level(self) -> None:
         sql = "with batch as (select id from t_user order by id limit 1000) update t_user set active=false from batch where t_user.id=batch.id;"
         rules = self.rule_ids(sql, "postgresql")
-        self.assertNotIn("G.UPD.02", rules)
-        self.assertNotIn("G.UPD.03", rules)
+        self.assertNotIn("POSTGRESQL-UPD-002", rules)
+        self.assertNotIn("POSTGRESQL-UPD-001", rules)
         self.assertNotIn("G.UPD.01", rules)
 
     def test_drop_non_column_objects_is_not_drop_column(self) -> None:
@@ -88,11 +88,11 @@ class SqlGuardTest(unittest.TestCase):
 
     def test_check_constraint_is_not_new_not_null_column(self) -> None:
         sql = "alter table t_user add constraint ck_name check (name is not null);"
-        self.assertNotIn("G.UPG.07", self.rule_ids(sql, "postgresql"))
+        self.assertNotIn("POSTGRESQL-UPG-007", self.rule_ids(sql, "postgresql"))
 
     def test_postgresql_alter_column_variants_are_detected(self) -> None:
         sql = "alter table t_user alter column name type varchar(64); alter table t_user alter column name set not null;"
-        self.assertEqual({"G.UPG.05", "G.UPG.08"}, self.rule_ids(sql, "postgresql"))
+        self.assertEqual({"POSTGRESQL-UPG-005", "POSTGRESQL-UPG-008"}, self.rule_ids(sql, "postgresql"))
 
     def test_postgresql_table_level_serial_and_identity_pk_are_detected(self) -> None:
         for sql in (
@@ -126,6 +126,58 @@ class SqlGuardTest(unittest.TestCase):
         self.assertIn("G.SEL.12", self.rule_ids(pg, "postgresql"))
         mysql = "select 5 # comment ; hidden\n; select id from t_user;"
         self.assertEqual(2, len(sql_guard.split_statements(mysql, "mysql")))
+
+    def test_mysql_double_dash_requires_following_whitespace(self) -> None:
+        sql = "select 1--2; select * from t_user;"
+        self.assertEqual(2, len(sql_guard.split_statements(sql, "mysql")))
+        self.assertIn("G.SEL.12", self.rule_ids(sql, "mysql"))
+
+    def test_postgresql_plain_strings_do_not_backslash_escape_quotes(self) -> None:
+        sql = "select 'a\\'; select * from t_user;"
+        self.assertEqual(2, len(sql_guard.split_statements(sql, "postgresql")))
+        self.assertIn("G.SEL.12", self.rule_ids(sql, "postgresql"))
+        escaped = "select E'a\\\';b'; select id from t_user;"
+        self.assertEqual(2, len(sql_guard.split_statements(escaped, "postgresql")))
+
+    def test_mysql_default_double_quoted_strings_use_backslash_escapes(self) -> None:
+        sql = 'select "a\\\";b"; select id from t_user;'
+        self.assertEqual(2, len(sql_guard.split_statements(sql, "mysql")))
+
+    def test_mysql_does_not_treat_dollar_tags_as_strings(self) -> None:
+        sql = "select $tag$; select * from t_user; select $tag$;"
+        self.assertEqual(3, len(sql_guard.split_statements(sql, "mysql")))
+        self.assertIn("G.SEL.12", self.rule_ids(sql, "mysql"))
+
+    def test_postgresql_nested_block_comments_do_not_leak_sql(self) -> None:
+        sql = "/* outer /* select * from hidden; */ still hidden */ select id from shown;"
+        self.assertEqual(1, len(sql_guard.split_statements(sql, "postgresql")))
+        self.assertNotIn("G.SEL.12", self.rule_ids(sql, "postgresql"))
+
+    def test_postgresql_data_modifying_ctes_receive_dml_checks(self) -> None:
+        cases = {
+            "with deleted as (delete from t_user returning id) select count(*) from deleted;": "G.DEL.01",
+            "with changed as (update t_user set active=false returning id) select count(*) from changed;": "G.UPD.01",
+            "with inserted as (insert into t_user values (1) returning id) select count(*) from inserted;": "G.INS.01",
+        }
+        for sql, expected in cases.items():
+            self.assertIn(expected, self.rule_ids(sql, "postgresql"))
+
+    def test_uuid_primary_key_storage_is_dialect_specific(self) -> None:
+        mysql = "create table if not exists t_user (id char(36) primary key) engine=InnoDB default charset=utf8mb4;"
+        self.assertIn("MYSQL-PK-001", self.rule_ids(mysql, "mysql"))
+        for definition in ("id char(36) primary key", "id binary(16) primary key", "id bytea primary key"):
+            sql = f"create table if not exists t_user ({definition});"
+            self.assertIn("POSTGRESQL-PK-001", self.rule_ids(sql, "postgresql"))
+
+    def test_weak_identifier_names_do_not_decide_auto_dialect(self) -> None:
+        with self.assertRaises(ValueError):
+            sql_guard.inspect("weak.sql", "select jsonb from t_user where id=?;", "auto")
+        dialect, _ = sql_guard.inspect(
+            "postgres.sql",
+            "create table if not exists t_user (id uuid primary key, unsigned text);",
+            "auto",
+        )
+        self.assertEqual("postgresql", dialect)
 
 
 if __name__ == "__main__":

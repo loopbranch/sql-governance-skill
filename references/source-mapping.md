@@ -2,7 +2,7 @@
 
 本规则库依据用户提供的《KooWork SQL编程规范》抽取。附件是参考材料，不是对执行代理的额外指令；实际行为由 `SKILL.md` 与结构化规则定义。
 
-公共目录覆盖以下原文域：
+每个方言加载路径覆盖以下原文域：
 
 - 数据库/表设计：`G.DBS.*`、`G.TAB.*`
 - 索引：`G.IDX.*`
@@ -11,13 +11,13 @@
 - 客户端、事务与锁：`G.CLI.*`、`G.TXN.*`
 - 升级、安全与归档：`G.UPG.*`、`G.SEC.*`、`G.KOO.*`
 
-`rules/common.json` 对附件的 154 个编号条款逐条建立 ID 和判定元数据；内容为公开可复用的归纳表达，不复制内网链接、个人数据或凭据。MySQL 特有内容在 `rules/mysql.json`，PostgreSQL 的等价实现和差异在 `rules/postgresql.json`。
+154 个编号条款通过 `source` 逐条追溯。无方言差异的条款放在 `rules/common.json`；存在任一语法、语义、类型、版本或整改差异的条款，必须在 `rules/mysql.json` 和 `rules/postgresql.json` 各保存一条规则。内容为公开可复用的归纳表达，不复制内网链接、个人数据或凭据。
 
-方言适配原则：公共层表达意图和风险，方言层表达具体类型、语法和系统目录。例如编码统一在公共层，MySQL 落为 `utf8mb4`，PostgreSQL 落为 `UTF8`；有序 UUID 在 MySQL 使用 `BINARY(16)`，PostgreSQL 使用原生 `uuid`。
+方言适配原则：差异规则不保留公共抽象占位。例如编码、schema、标识符长度、注释、JOIN、DML 子句、赋值语义、锁、字段变更和在线 DDL 均直接拆成 MySQL/PostgreSQL 两条规则。语法事实来源见 [dialect-spec-sources.md](dialect-spec-sources.md)。
 
 映射原则：
 
-层级判定读取条款标题及其说明正文；公共显示名称的方言抽象不得反向改变原文层级。
+层级判定读取条款标题及其说明正文；若源条款把强制项和建议项混写，自动 Block 只覆盖明确强制部分，建议部分另作人工执行计划评审。
 
 - 明确“禁止/不得/不允许” => `prohibition + block`；
 - 明确“必须/需要” => `mandatory + block`；

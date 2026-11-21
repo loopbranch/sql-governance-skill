@@ -23,10 +23,9 @@ EXPECTED_SOURCE_DOMAINS = {
     "CMT": 10, "SEL": 35, "INS": 3, "DEL": 3, "UPD": 7,
     "CLI": 5, "TXN": 8, "UPG": 13, "SEC": 3, "KOO": 9,
 }
-EXPECTED_STATIC_IDS = {
-    "G.DEL.01", "G.INS.01", "G.SEL.08", "G.SEL.12", "G.TAB.04", "G.TAB.16",
-    "G.TXN.01", "G.TXN.07", "G.UPD.01", "G.UPD.02", "G.UPD.03", "G.UPG.03",
-    "G.UPG.05", "G.UPG.07", "G.UPG.08", "G.UPG.10", "G.UPG.11",
+EXPECTED_COMMON_STATIC_IDS = {
+    "G.DEL.01", "G.INS.01", "G.SEL.12", "G.TAB.04", "G.TAB.16",
+    "G.TXN.01", "G.UPD.01", "G.UPG.03", "G.UPG.10", "G.UPG.11",
 }
 REQUIRED = {"id", "source", "name", "level", "gate", "scope", "dialects", "condition", "check", "examples", "remediation", "confirmation_required"}
 
@@ -101,15 +100,40 @@ def main() -> int:
             validate_rule(rule, file_name, index, seen)
         files[dialect] = payload
 
+    expected_source_ids = {
+        f"G.{domain}.{number:02d}"
+        for domain, count in EXPECTED_SOURCE_DOMAINS.items()
+        for number in range(1, count + 1)
+    }
     common_ids = {rule["id"] for rule in files["common"]["rules"]}
-    if len(common_ids) != EXPECTED_SOURCE_COUNT or not all(re.fullmatch(r"G\.[A-Z]+\.[0-9]+", rule_id) for rule_id in common_ids):
-        fail(f"common catalog must contain all {EXPECTED_SOURCE_COUNT} numbered source clauses; got {len(common_ids)}")
-    source_domains = Counter(rule_id.split(".")[1] for rule_id in common_ids)
+    if not all(re.fullmatch(r"G\.[A-Z]+\.[0-9]+", rule_id) for rule_id in common_ids):
+        fail("common catalog may contain only unsplit numbered source clauses")
+    split_sources: dict[str, set[str]] = {}
+    for dialect in VALID_DIALECTS:
+        dialect_sources = {
+            source
+            for rule in files[dialect]["rules"]
+            for source in rule["source"]
+            if re.fullmatch(r"G\.[A-Z]+\.[0-9]+", source)
+        }
+        split_sources[dialect] = dialect_sources
+        covered = common_ids | dialect_sources
+        if covered != expected_source_ids:
+            fail(f"{dialect}: source coverage mismatch missing={sorted(expected_source_ids-covered)} extra={sorted(covered-expected_source_ids)}")
+        duplicates = common_ids & dialect_sources
+        if duplicates:
+            fail(f"{dialect}: split sources must not remain in common.json: {sorted(duplicates)}")
+    if split_sources["mysql"] != split_sources["postgresql"]:
+        fail("every dialect-different source clause must have both MySQL and PostgreSQL rules")
+    source_domains = Counter(rule_id.split(".")[1] for rule_id in expected_source_ids)
     if dict(source_domains) != EXPECTED_SOURCE_DOMAINS:
-        fail(f"common catalog domain coverage mismatch: {dict(source_domains)}")
+        fail(f"source domain expectation is inconsistent: {dict(source_domains)}")
     static_ids = {rule["id"] for rule in files["common"]["rules"] if rule["check"]["kind"] == "static"}
-    if static_ids != EXPECTED_STATIC_IDS:
+    if static_ids != EXPECTED_COMMON_STATIC_IDS:
         fail(f"common static coverage must match sql_guard implementation: {sorted(static_ids)}")
+    common_by_id = {rule["id"]: rule for rule in files["common"]["rules"]}
+    if any(common_by_id[rule_id]["gate"] != "block" for rule_id in static_ids):
+        fail("all executable common static rules must be block")
     for dialect in VALID_DIALECTS:
         if not files[dialect]["rules"]:
             fail(f"{dialect}: dialect catalog must not be empty")
@@ -117,8 +141,27 @@ def main() -> int:
             if rule["dialects"] != [dialect]:
                 fail(f"{rule['id']}: dialect file must target only {dialect}")
 
+    # Import lazily to make the executable coverage contract testable without
+    # duplicating its dialect rule sets here.
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import sql_guard  # type: ignore
+    if static_ids != sql_guard.COMMON_GUARD_RULES:
+        fail("common static rules and sql_guard.COMMON_GUARD_RULES differ")
+    for dialect in VALID_DIALECTS:
+        dialect_ids = {rule["id"] for rule in files[dialect]["rules"]}
+        dialect_static = {rule["id"] for rule in files[dialect]["rules"] if rule["check"]["kind"] == "static"}
+        configured = sql_guard.DIALECT_GUARD_RULES[dialect]
+        if not dialect_static <= configured:
+            fail(f"{dialect}: static rules missing from DIALECT_GUARD_RULES: {sorted(dialect_static-configured)}")
+        if not configured <= dialect_ids:
+            fail(f"{dialect}: DIALECT_GUARD_RULES references unknown rules: {sorted(configured-dialect_ids)}")
+        configured_rules = {rule["id"]: rule for rule in files[dialect]["rules"] if rule["id"] in configured}
+        non_block = {rule_id for rule_id, rule in configured_rules.items() if rule["gate"] != "block"}
+        if non_block:
+            fail(f"{dialect}: executable guard rules must be block: {sorted(non_block)}")
+
     levels = Counter(rule["level"] for rule in files["common"]["rules"])
-    print(f"OK: {len(seen)} rules ({len(common_ids)} source + {len(seen)-len(common_ids)} dialect), catalog v{catalog['catalog_version']}")
+    print(f"OK: {len(seen)} rules ({len(common_ids)} common + {len(split_sources['mysql'])} split sources per dialect), catalog v{catalog['catalog_version']}")
     print(f"common levels: {dict(levels)}")
     return 0
 

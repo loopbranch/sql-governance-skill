@@ -10,7 +10,7 @@ sql-governance-skill/
 ├── agents/openai.yaml               # SKILL 展示元数据
 ├── rules/
 │   ├── catalog.json                 # 方言路由和加载顺序
-│   ├── common.json                  # 154 条原文条款的公共抽象
+│   ├── common.json                  # 仅保存双方言无差异的源条款
 │   ├── mysql.json                   # MySQL 专属实现与语法
 │   ├── postgresql.json              # PostgreSQL 专属实现与语法
 │   ├── schema.json                  # 规则 JSON Schema
@@ -43,7 +43,7 @@ python3 scripts/sql_guard.py --dialect postgresql path/to/postgresql-change.sql
 python3 /path/to/skill-creator/scripts/quick_validate.py .
 ```
 
-`sql_guard.py` 对已实现的高置信禁止项返回退出码 `1`，输入、读取或方言不明确返回 `2`，通过返回 `0`；支持 `--format json`，并通过 `checked_rules` 明确本次自动覆盖范围。`--dialect auto` 只在证据单一时推断，无法确定时阻断结论。脚本通过不代表 170 条规则全部通过，人工和混合规则仍按 `SKILL.md` 检视。
+`sql_guard.py` 对已实现的高置信禁止项返回退出码 `1`，输入、读取或方言不明确返回 `2`，通过返回 `0`；支持 `--format json`，并通过 `checked_rules` 明确本次自动覆盖范围。`--dialect auto` 只在强语法证据单一时推断，裸标识符不作为定论；无法确定时阻断结论。脚本通过不代表全部规则通过，人工和混合规则仍按 `SKILL.md` 检视。
 
 ## 主工程引入
 
@@ -67,4 +67,4 @@ git submodule update --init --recursive
 
 - 本仓库不执行生产 SQL，也不代替数据库变更审批系统。
 - 开发者“确认”只允许继续处理准确描述的方案，不豁免 Block，不等于批准生产执行。
-- `common.json` 覆盖附件全部 154 个编号条款；MySQL/PostgreSQL 差异规则单独维护。静态脚本通过不等于完整合规，manual/hybrid 条款仍需报告证据。
+- 每个方言加载路径恰好覆盖附件全部 154 个编号条款；双方言有任一差异的源条款只在 `mysql.json` 与 `postgresql.json` 成对维护，不在 `common.json` 保留抽象副本。事实依据见 [方言规范依据](references/dialect-spec-sources.md)。

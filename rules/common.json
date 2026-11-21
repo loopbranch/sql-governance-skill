@@ -4,60 +4,6 @@
   "description": "Portable rules derived from the supplied SQL programming standard; apply with exactly one dialect catalog.",
   "rules": [
     {
-      "id": "G.DBS.01",
-      "source": [
-        "G.DBS.01"
-      ],
-      "name": "客户端与服务端统一使用目标数据库支持的 Unicode 编码",
-      "level": "mandatory",
-      "gate": "block",
-      "scope": [
-        "dbs"
-      ],
-      "dialects": [
-        "mysql",
-        "postgresql"
-      ],
-      "condition": "客户端与服务端必须统一使用目标数据库支持的 Unicode 编码；具体编码由方言规则给出。",
-      "check": {
-        "kind": "manual",
-        "detector": "核对设计、运行数据、审批或运维证据。"
-      },
-      "examples": {
-        "positive": "合规证据示例：实例、连接与部署配置能够证明“客户端与服务端必须统一使用目标数据库支持的 Unicode 编码；具体编码由方言规则给出。”。",
-        "negative": "不合规场景：实例、连接与部署配置缺失，或其内容表明未满足“客户端与服务端必须统一使用目标数据库支持的 Unicode 编码；具体编码由方言规则给出。”。"
-      },
-      "remediation": "按“客户端与服务端统一使用目标数据库支持的 Unicode 编码”整改；涉及方言语法时同时应用对应方言规则。",
-      "confirmation_required": false
-    },
-    {
-      "id": "G.DBS.02",
-      "source": [
-        "G.DBS.02"
-      ],
-      "name": "每个服务采用独立的数据库schema",
-      "level": "mandatory",
-      "gate": "block",
-      "scope": [
-        "dbs"
-      ],
-      "dialects": [
-        "mysql",
-        "postgresql"
-      ],
-      "condition": "每个服务采用独立的数据库schema。为了提高性能，多个服务可能访问同一个schema，需要注意权限控制，参考云文档数据模型",
-      "check": {
-        "kind": "manual",
-        "detector": "核对设计、运行数据、审批或运维证据。"
-      },
-      "examples": {
-        "positive": "合规证据示例：实例、连接与部署配置能够证明“每个服务采用独立的数据库schema。为了提高性能，多个服务可能访问同一个schema，需要注意权限控制，参考云文档数据模型”。",
-        "negative": "不合规场景：实例、连接与部署配置缺失，或其内容表明未满足“每个服务采用独立的数据库schema。为了提高性能，多个服务可能访问同一个schema，需要注意权限控制，参考云文档数据模型”。"
-      },
-      "remediation": "按“每个服务采用独立的数据库schema”整改；涉及方言语法时同时应用对应方言规则。",
-      "confirmation_required": false
-    },
-    {
       "id": "G.DBS.03",
       "source": [
         "G.DBS.03"
@@ -112,33 +58,6 @@
       "confirmation_required": false
     },
     {
-      "id": "G.DBS.05",
-      "source": [
-        "G.DBS.05"
-      ],
-      "name": "实例、数据库、表与字段排序规则统一管理",
-      "level": "recommendation",
-      "gate": "warn",
-      "scope": [
-        "dbs"
-      ],
-      "dialects": [
-        "mysql",
-        "postgresql"
-      ],
-      "condition": "实例、数据库、表和字段的排序规则必须统一管理；需要二进制或语言排序时单独评审。",
-      "check": {
-        "kind": "manual",
-        "detector": "核对设计、运行数据、审批或运维证据。"
-      },
-      "examples": {
-        "positive": "合规证据示例：实例、连接与部署配置能够证明“实例、数据库、表和字段的排序规则必须统一管理；需要二进制或语言排序时单独评审。”。",
-        "negative": "不合规场景：实例、连接与部署配置缺失，或其内容表明未满足“实例、数据库、表和字段的排序规则必须统一管理；需要二进制或语言排序时单独评审。”。"
-      },
-      "remediation": "按“实例、数据库、表与字段排序规则统一管理”整改；涉及方言语法时同时应用对应方言规则。",
-      "confirmation_required": false
-    },
-    {
       "id": "G.DBS.06",
       "source": [
         "G.DBS.06"
@@ -164,33 +83,6 @@
       },
       "remediation": "按“避免应用运行期频繁创建和删除表”整改；涉及方言语法时同时应用对应方言规则。",
       "confirmation_required": false
-    },
-    {
-      "id": "G.TAB.01",
-      "source": [
-        "G.TAB.01"
-      ],
-      "name": "新表使用目标数据库推荐的事务型表实现",
-      "level": "mandatory",
-      "gate": "block",
-      "scope": [
-        "tab"
-      ],
-      "dialects": [
-        "mysql",
-        "postgresql"
-      ],
-      "condition": "新表必须使用目标数据库推荐且支持事务、崩溃恢复的表实现；具体要求由方言规则给出。",
-      "check": {
-        "kind": "hybrid",
-        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。"
-      },
-      "examples": {
-        "positive": "合规证据示例：DDL、数据模型与容量评审记录能够证明“新表必须使用目标数据库推荐且支持事务、崩溃恢复的表实现；具体要求由方言规则给出。”。",
-        "negative": "不合规场景：DDL、数据模型与容量评审记录缺失，或其内容表明未满足“新表必须使用目标数据库推荐且支持事务、崩溃恢复的表实现；具体要求由方言规则给出。”。"
-      },
-      "remediation": "按“新表使用目标数据库推荐的事务型表实现”整改；涉及方言语法时同时应用对应方言规则。",
-      "confirmation_required": true
     },
     {
       "id": "G.TAB.02",
@@ -271,33 +163,6 @@
         "negative": "constraint fk_order_user foreign key (user_id) references t_user(id)"
       },
       "remediation": "按“避免使用外键（禁止）”整改；涉及方言语法时同时应用对应方言规则。",
-      "confirmation_required": true
-    },
-    {
-      "id": "G.TAB.05",
-      "source": [
-        "G.TAB.05"
-      ],
-      "name": "表与字符字段使用统一 Unicode 编码策略",
-      "level": "mandatory",
-      "gate": "block",
-      "scope": [
-        "tab"
-      ],
-      "dialects": [
-        "mysql",
-        "postgresql"
-      ],
-      "condition": "表和字符字段必须使用目标数据库的统一 Unicode 编码策略。",
-      "check": {
-        "kind": "hybrid",
-        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。"
-      },
-      "examples": {
-        "positive": "合规证据示例：DDL、数据模型与容量评审记录能够证明“表和字符字段必须使用目标数据库的统一 Unicode 编码策略。”。",
-        "negative": "不合规场景：DDL、数据模型与容量评审记录缺失，或其内容表明未满足“表和字符字段必须使用目标数据库的统一 Unicode 编码策略。”。"
-      },
-      "remediation": "按“表与字符字段使用统一 Unicode 编码策略”整改；涉及方言语法时同时应用对应方言规则。",
       "confirmation_required": true
     },
     {
@@ -490,33 +355,6 @@
       "confirmation_required": true
     },
     {
-      "id": "G.TAB.13",
-      "source": [
-        "G.TAB.13"
-      ],
-      "name": "表和字段定义时创建相应的注释信息",
-      "level": "mandatory",
-      "gate": "block",
-      "scope": [
-        "tab"
-      ],
-      "dialects": [
-        "mysql",
-        "postgresql"
-      ],
-      "condition": "表和字段定义时创建相应的注释信息",
-      "check": {
-        "kind": "hybrid",
-        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。"
-      },
-      "examples": {
-        "positive": "合规证据示例：DDL、数据模型与容量评审记录能够证明“表和字段定义时创建相应的注释信息”。",
-        "negative": "不合规场景：DDL、数据模型与容量评审记录缺失，或其内容表明未满足“表和字段定义时创建相应的注释信息”。"
-      },
-      "remediation": "按“表和字段定义时创建相应的注释信息”整改；涉及方言语法时同时应用对应方言规则。",
-      "confirmation_required": true
-    },
-    {
       "id": "G.TAB.14",
       "source": [
         "G.TAB.14"
@@ -541,33 +379,6 @@
         "negative": "不合规场景：DDL、数据模型与容量评审记录缺失，或其内容表明未满足“定长字符数据使用CHAR类型，变长字符数据使用VARCHAR类型”。"
       },
       "remediation": "按“定长字符数据使用CHAR类型，变长字符数据使用VARCHAR类型”整改；涉及方言语法时同时应用对应方言规则。",
-      "confirmation_required": true
-    },
-    {
-      "id": "G.TAB.15",
-      "source": [
-        "G.TAB.15"
-      ],
-      "name": "按绝对时间点与本地时间语义选择时间类型",
-      "level": "recommendation",
-      "gate": "warn",
-      "scope": [
-        "tab"
-      ],
-      "dialects": [
-        "mysql",
-        "postgresql"
-      ],
-      "condition": "时间字段必须根据是否表示绝对时间点、是否需要时区转换来选择类型；具体类型由方言规则给出。",
-      "check": {
-        "kind": "hybrid",
-        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。"
-      },
-      "examples": {
-        "positive": "合规证据示例：DDL、数据模型与容量评审记录能够证明“时间字段必须根据是否表示绝对时间点、是否需要时区转换来选择类型；具体类型由方言规则给出。”。",
-        "negative": "不合规场景：DDL、数据模型与容量评审记录缺失，或其内容表明未满足“时间字段必须根据是否表示绝对时间点、是否需要时区转换来选择类型；具体类型由方言规则给出。”。"
-      },
-      "remediation": "按“按绝对时间点与本地时间语义选择时间类型”整改；涉及方言语法时同时应用对应方言规则。",
       "confirmation_required": true
     },
     {
@@ -622,60 +433,6 @@
         "negative": "不合规场景：DDL、数据模型与容量评审记录缺失，或其内容表明未满足“对于明确不存在NULL值的字段加上NOT NULL约束”。"
       },
       "remediation": "按“对于明确不存在NULL值的字段加上NOT NULL约束”整改；涉及方言语法时同时应用对应方言规则。",
-      "confirmation_required": true
-    },
-    {
-      "id": "G.TAB.18",
-      "source": [
-        "G.TAB.18"
-      ],
-      "name": "超大表必须评估分区或分片",
-      "level": "recommendation",
-      "gate": "warn",
-      "scope": [
-        "tab"
-      ],
-      "dialects": [
-        "mysql",
-        "postgresql"
-      ],
-      "condition": "三年预期超过一千万行的表必须评估分区或分库分表；有时间清理特征的表优先评估分区，其他大表评估项目批准的分片平台。",
-      "check": {
-        "kind": "hybrid",
-        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。"
-      },
-      "examples": {
-        "positive": "合规证据示例：DDL、数据模型与容量评审记录能够证明“三年预期超过一千万行的表必须评估分区或分库分表；有时间清理特征的表优先评估分区，其他大表评估项目批准的分片平台。”。",
-        "negative": "不合规场景：DDL、数据模型与容量评审记录缺失，或其内容表明未满足“三年预期超过一千万行的表必须评估分区或分库分表；有时间清理特征的表优先评估分区，其他大表评估项目批准的分片平台。”。"
-      },
-      "remediation": "按“超大表必须评估分区或分片”整改；涉及方言语法时同时应用对应方言规则。",
-      "confirmation_required": true
-    },
-    {
-      "id": "G.TAB.19",
-      "source": [
-        "G.TAB.19"
-      ],
-      "name": "单表的分区总数建议不超过100",
-      "level": "recommendation",
-      "gate": "warn",
-      "scope": [
-        "tab"
-      ],
-      "dialects": [
-        "mysql",
-        "postgresql"
-      ],
-      "condition": "单表的分区总数建议不超过100。2.3索引设计",
-      "check": {
-        "kind": "hybrid",
-        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。"
-      },
-      "examples": {
-        "positive": "合规证据示例：DDL、数据模型与容量评审记录能够证明“单表的分区总数建议不超过100。2.3索引设计”。",
-        "negative": "不合规场景：DDL、数据模型与容量评审记录缺失，或其内容表明未满足“单表的分区总数建议不超过100。2.3索引设计”。"
-      },
-      "remediation": "按“单表的分区总数建议不超过100”整改；涉及方言语法时同时应用对应方言规则。",
       "confirmation_required": true
     },
     {
@@ -814,60 +571,6 @@
       "confirmation_required": true
     },
     {
-      "id": "G.IDX.06",
-      "source": [
-        "G.IDX.06"
-      ],
-      "name": "大文本与超长字段使用目标数据库适配的索引方案",
-      "level": "prohibition",
-      "gate": "block",
-      "scope": [
-        "idx"
-      ],
-      "dialects": [
-        "mysql",
-        "postgresql"
-      ],
-      "condition": "避免直接索引大文本或超长字段；确需检索时使用目标数据库支持的表达式、全文或专用索引。",
-      "check": {
-        "kind": "hybrid",
-        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。"
-      },
-      "examples": {
-        "positive": "合规证据示例：索引 DDL、数据分布和 EXPLAIN能够证明“避免直接索引大文本或超长字段；确需检索时使用目标数据库支持的表达式、全文或专用索引。”。",
-        "negative": "不合规场景：索引 DDL、数据分布和 EXPLAIN缺失，或其内容表明未满足“避免直接索引大文本或超长字段；确需检索时使用目标数据库支持的表达式、全文或专用索引。”。"
-      },
-      "remediation": "按“大文本与超长字段使用目标数据库适配的索引方案”整改；涉及方言语法时同时应用对应方言规则。",
-      "confirmation_required": true
-    },
-    {
-      "id": "G.IDX.07",
-      "source": [
-        "G.IDX.07"
-      ],
-      "name": "建议索引字段累加长度不超过200字节",
-      "level": "recommendation",
-      "gate": "warn",
-      "scope": [
-        "idx"
-      ],
-      "dialects": [
-        "mysql",
-        "postgresql"
-      ],
-      "condition": "建议索引字段累加长度不超过200字节",
-      "check": {
-        "kind": "hybrid",
-        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。"
-      },
-      "examples": {
-        "positive": "合规证据示例：索引 DDL、数据分布和 EXPLAIN能够证明“建议索引字段累加长度不超过200字节”。",
-        "negative": "不合规场景：索引 DDL、数据分布和 EXPLAIN缺失，或其内容表明未满足“建议索引字段累加长度不超过200字节”。"
-      },
-      "remediation": "按“建议索引字段累加长度不超过200字节”整改；涉及方言语法时同时应用对应方言规则。",
-      "confirmation_required": true
-    },
-    {
       "id": "G.IDX.08",
       "source": [
         "G.IDX.08"
@@ -946,33 +649,6 @@
         "negative": "不合规场景：索引 DDL、数据分布和 EXPLAIN缺失，或其内容表明未满足“单个索引中的字段数不超过5个”。"
       },
       "remediation": "按“单个索引中的字段数不超过5个”整改；涉及方言语法时同时应用对应方言规则。",
-      "confirmation_required": true
-    },
-    {
-      "id": "G.IDX.11",
-      "source": [
-        "G.IDX.11"
-      ],
-      "name": "分布式主键禁止依赖数据库本地自增序列",
-      "level": "prohibition",
-      "gate": "block",
-      "scope": [
-        "idx"
-      ],
-      "dialects": [
-        "mysql",
-        "postgresql"
-      ],
-      "condition": "新表禁止使用数据库本地自增序列作为分布式主键；优先使用有时序的 UUID，并采用方言原生高效类型。",
-      "check": {
-        "kind": "hybrid",
-        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。"
-      },
-      "examples": {
-        "positive": "合规证据示例：索引 DDL、数据分布和 EXPLAIN能够证明“新表禁止使用数据库本地自增序列作为分布式主键；优先使用有时序的 UUID，并采用方言原生高效类型。”。",
-        "negative": "不合规场景：索引 DDL、数据分布和 EXPLAIN缺失，或其内容表明未满足“新表禁止使用数据库本地自增序列作为分布式主键；优先使用有时序的 UUID，并采用方言原生高效类型。”。"
-      },
-      "remediation": "按“分布式主键禁止依赖数据库本地自增序列”整改；涉及方言语法时同时应用对应方言规则。",
       "confirmation_required": true
     },
     {
@@ -1327,33 +1003,6 @@
       "confirmation_required": false
     },
     {
-      "id": "G.NAM.01",
-      "source": [
-        "G.NAM.01"
-      ],
-      "name": "命名不能和数据库的关键字、系统对象重名",
-      "level": "prohibition",
-      "gate": "block",
-      "scope": [
-        "nam"
-      ],
-      "dialects": [
-        "mysql",
-        "postgresql"
-      ],
-      "condition": "命名不能和数据库的关键字、系统对象重名。【反例】 event表",
-      "check": {
-        "kind": "hybrid",
-        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。"
-      },
-      "examples": {
-        "positive": "合规证据示例：schema 对象和代码标识符清单能够证明“命名不能和数据库的关键字、系统对象重名。【反例】 event表”。",
-        "negative": "不合规场景：schema 对象和代码标识符清单缺失，或其内容表明未满足“命名不能和数据库的关键字、系统对象重名。【反例】 event表”。"
-      },
-      "remediation": "按“命名不能和数据库的关键字、系统对象重名”整改；涉及方言语法时同时应用对应方言规则。",
-      "confirmation_required": false
-    },
-    {
       "id": "G.NAM.02",
       "source": [
         "G.NAM.02"
@@ -1378,33 +1027,6 @@
         "negative": "不合规场景：schema 对象和代码标识符清单缺失，或其内容表明未满足“对象名称只能包含小写字母、数字和下划线，单词之间采用下划线分割。对象名称：库名、表空间名、表名、字段名、索引名、视图名、存储过程名、函数名等 蛇形：包含小写字母、数字和下划线，单词之间采用下划线分割。 旧版本表是驼峰命名，如果新增字段、遵循旧版本的驼峰格式。”。"
       },
       "remediation": "按“对象名称只能包含小写字母、数字和下划线，单词之间采用下划线分割”整改；涉及方言语法时同时应用对应方言规则。",
-      "confirmation_required": false
-    },
-    {
-      "id": "G.NAM.03",
-      "source": [
-        "G.NAM.03"
-      ],
-      "name": "对象名称长度需要有所限制，所有的对象名称长度不得超过63",
-      "level": "prohibition",
-      "gate": "block",
-      "scope": [
-        "nam"
-      ],
-      "dialects": [
-        "mysql",
-        "postgresql"
-      ],
-      "condition": "对象名称长度需要有所限制，所有的对象名称长度不得超过63。为了支持分库分表， 限制长度到56。 库名、表名、字段名建议不超过12个字符",
-      "check": {
-        "kind": "hybrid",
-        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。"
-      },
-      "examples": {
-        "positive": "合规证据示例：schema 对象和代码标识符清单能够证明“对象名称长度需要有所限制，所有的对象名称长度不得超过63。为了支持分库分表， 限制长度到56。 库名、表名、字段名建议不超过12个字符”。",
-        "negative": "不合规场景：schema 对象和代码标识符清单缺失，或其内容表明未满足“对象名称长度需要有所限制，所有的对象名称长度不得超过63。为了支持分库分表， 限制长度到56。 库名、表名、字段名建议不超过12个字符”。"
-      },
-      "remediation": "按“对象名称长度需要有所限制，所有的对象名称长度不得超过63”整改；涉及方言语法时同时应用对应方言规则。",
       "confirmation_required": false
     },
     {
@@ -1840,33 +1462,6 @@
       "confirmation_required": false
     },
     {
-      "id": "G.SEL.01",
-      "source": [
-        "G.SEL.01"
-      ],
-      "name": "生产环境的运行SQL，不建议使用hint调整SELECT语句的执行计划",
-      "level": "recommendation",
-      "gate": "warn",
-      "scope": [
-        "sel"
-      ],
-      "dialects": [
-        "mysql",
-        "postgresql"
-      ],
-      "condition": "生产环境的运行SQL，不建议使用hint调整SELECT语句的执行计划",
-      "check": {
-        "kind": "hybrid",
-        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。"
-      },
-      "examples": {
-        "positive": "合规证据示例：查询 SQL、参数和执行计划能够证明“生产环境的运行SQL，不建议使用hint调整SELECT语句的执行计划”。",
-        "negative": "不合规场景：查询 SQL、参数和执行计划缺失，或其内容表明未满足“生产环境的运行SQL，不建议使用hint调整SELECT语句的执行计划”。"
-      },
-      "remediation": "按“生产环境的运行SQL，不建议使用hint调整SELECT语句的执行计划”整改；涉及方言语法时同时应用对应方言规则。",
-      "confirmation_required": false
-    },
-    {
       "id": "G.SEL.02",
       "source": [
         "G.SEL.02"
@@ -1948,33 +1543,6 @@
       "confirmation_required": false
     },
     {
-      "id": "G.SEL.05",
-      "source": [
-        "G.SEL.05"
-      ],
-      "name": "在子查询中必须有FROM子句",
-      "level": "mandatory",
-      "gate": "block",
-      "scope": [
-        "sel"
-      ],
-      "dialects": [
-        "mysql",
-        "postgresql"
-      ],
-      "condition": "在子查询中必须有FROM子句",
-      "check": {
-        "kind": "hybrid",
-        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。"
-      },
-      "examples": {
-        "positive": "合规证据示例：查询 SQL、参数和执行计划能够证明“在子查询中必须有FROM子句”。",
-        "negative": "不合规场景：查询 SQL、参数和执行计划缺失，或其内容表明未满足“在子查询中必须有FROM子句”。"
-      },
-      "remediation": "按“在子查询中必须有FROM子句”整改；涉及方言语法时同时应用对应方言规则。",
-      "confirmation_required": false
-    },
-    {
       "id": "G.SEL.06",
       "source": [
         "G.SEL.06"
@@ -2026,33 +1594,6 @@
         "negative": "不合规场景：查询 SQL、参数和执行计划缺失，或其内容表明未满足“结果集不依赖结果列的顺序时，不要使用order by”。"
       },
       "remediation": "按“结果集不依赖结果列的顺序时，不要使用order by”整改；涉及方言语法时同时应用对应方言规则。",
-      "confirmation_required": false
-    },
-    {
-      "id": "G.SEL.08",
-      "source": [
-        "G.SEL.08"
-      ],
-      "name": "禁止使用cross join和full join",
-      "level": "prohibition",
-      "gate": "block",
-      "scope": [
-        "sel"
-      ],
-      "dialects": [
-        "mysql",
-        "postgresql"
-      ],
-      "condition": "禁止使用cross join和full join",
-      "check": {
-        "kind": "static",
-        "detector": "静态解析 SQL/代码并结合 schema 判断。"
-      },
-      "examples": {
-        "positive": "select a.id from t_a a inner join t_b b on b.id = a.id",
-        "negative": "select a.id from t_a a full outer join t_b b on b.id = a.id"
-      },
-      "remediation": "按“禁止使用cross join和full join”整改；涉及方言语法时同时应用对应方言规则。",
       "confirmation_required": false
     },
     {
@@ -2141,7 +1682,7 @@
       "source": [
         "G.SEL.12"
       ],
-      "name": "禁止使用select",
+      "name": "禁止使用 select *",
       "level": "prohibition",
       "gate": "block",
       "scope": [
@@ -2151,7 +1692,7 @@
         "mysql",
         "postgresql"
       ],
-      "condition": "禁止使用select。【例外】表结构稳定，客户端需要全部字段；表结构变更后（比如增加或删除了字段），需要自适应变更，在这些场景下可以使用。",
+      "condition": "禁止使用 select *。【例外】表结构稳定，客户端确实需要全部字段且已记录评审依据；表结构变更后需要自适应时可按例外流程使用。",
       "check": {
         "kind": "static",
         "detector": "静态解析 SQL/代码并结合 schema 判断。"
@@ -2160,7 +1701,7 @@
         "positive": "select id, status from t_order",
         "negative": "select * from t_order"
       },
-      "remediation": "按“禁止使用select”整改；涉及方言语法时同时应用对应方言规则。",
+      "remediation": "显式列出所需字段；确需 select * 时记录例外范围和依据。",
       "confirmation_required": false
     },
     {
@@ -2222,7 +1763,7 @@
       "source": [
         "G.SEL.15"
       ],
-      "name": "不要使用count(列名)，并使用count(1)代替count()",
+      "name": "按空值语义选择 count(*) 或 count(列名)",
       "level": "recommendation",
       "gate": "warn",
       "scope": [
@@ -2232,7 +1773,7 @@
         "mysql",
         "postgresql"
       ],
-      "condition": "不要使用count(列名)，并使用count(1)代替count()",
+      "condition": "统计行数使用 count(*)；只有需要忽略 NULL 时才使用 count(列名)。不得以性能理由强制用 count(1) 替代 count(*)。",
       "check": {
         "kind": "hybrid",
         "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。"
@@ -2241,7 +1782,7 @@
         "positive": "合规证据示例：查询 SQL、参数和执行计划能够证明“不要使用count(列名)，并使用count(1)代替count()”。",
         "negative": "不合规场景：查询 SQL、参数和执行计划缺失，或其内容表明未满足“不要使用count(列名)，并使用count(1)代替count()”。"
       },
-      "remediation": "按“不要使用count(列名)，并使用count(1)代替count()”整改；涉及方言语法时同时应用对应方言规则。",
+      "remediation": "先明确是否忽略 NULL，再选择 count(*) 或 count(列名)。",
       "confirmation_required": false
     },
     {
@@ -2269,33 +1810,6 @@
         "negative": "不合规场景：查询 SQL、参数和执行计划缺失，或其内容表明未满足“提前通过谓词对结果集进行访问，减小结果集大小”。"
       },
       "remediation": "按“提前通过谓词对结果集进行访问，减小结果集大小”整改；涉及方言语法时同时应用对应方言规则。",
-      "confirmation_required": false
-    },
-    {
-      "id": "G.SEL.17",
-      "source": [
-        "G.SEL.17"
-      ],
-      "name": "不能用nodatafound异常来处理max、min、sum、avg等函数",
-      "level": "prohibition",
-      "gate": "block",
-      "scope": [
-        "sel"
-      ],
-      "dialects": [
-        "mysql",
-        "postgresql"
-      ],
-      "condition": "不能用nodatafound异常来处理max、min、sum、avg等函数",
-      "check": {
-        "kind": "hybrid",
-        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。"
-      },
-      "examples": {
-        "positive": "合规证据示例：查询 SQL、参数和执行计划能够证明“不能用nodatafound异常来处理max、min、sum、avg等函数”。",
-        "negative": "不合规场景：查询 SQL、参数和执行计划缺失，或其内容表明未满足“不能用nodatafound异常来处理max、min、sum、avg等函数”。"
-      },
-      "remediation": "按“不能用nodatafound异常来处理max、min、sum、avg等函数”整改；涉及方言语法时同时应用对应方言规则。",
       "confirmation_required": false
     },
     {
@@ -2758,33 +2272,6 @@
       "confirmation_required": false
     },
     {
-      "id": "G.SEL.35",
-      "source": [
-        "G.SEL.35"
-      ],
-      "name": "查询时，不依赖可能会随数据变化而变更的，表示记录标识的伪列",
-      "level": "mandatory",
-      "gate": "block",
-      "scope": [
-        "sel"
-      ],
-      "dialects": [
-        "mysql",
-        "postgresql"
-      ],
-      "condition": "查询时，不依赖可能会随数据变化而变更的，表示记录标识的伪列。4.2insert",
-      "check": {
-        "kind": "hybrid",
-        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。"
-      },
-      "examples": {
-        "positive": "合规证据示例：查询 SQL、参数和执行计划能够证明“查询时，不依赖可能会随数据变化而变更的，表示记录标识的伪列。4.2insert”。",
-        "negative": "不合规场景：查询 SQL、参数和执行计划缺失，或其内容表明未满足“查询时，不依赖可能会随数据变化而变更的，表示记录标识的伪列。4.2insert”。"
-      },
-      "remediation": "按“查询时，不依赖可能会随数据变化而变更的，表示记录标识的伪列”整改；涉及方言语法时同时应用对应方言规则。",
-      "confirmation_required": false
-    },
-    {
       "id": "G.INS.01",
       "source": [
         "G.INS.01"
@@ -2871,34 +2358,7 @@
         "G.DEL.01"
       ],
       "name": "delete语句必须带where条件，where条件应优先结合主键或索引",
-      "level": "recommendation",
-      "gate": "warn",
-      "scope": [
-        "del"
-      ],
-      "dialects": [
-        "mysql",
-        "postgresql"
-      ],
-      "condition": "delete语句必须带where条件，where条件应优先结合主键或索引",
-      "check": {
-        "kind": "static",
-        "detector": "静态解析 SQL/代码并结合 schema 判断。"
-      },
-      "examples": {
-        "positive": "delete from t_order where id = ?",
-        "negative": "delete from t_order"
-      },
-      "remediation": "按“delete语句必须带where条件，where条件应优先结合主键或索引”整改；涉及方言语法时同时应用对应方言规则。",
-      "confirmation_required": false
-    },
-    {
-      "id": "G.DEL.02",
-      "source": [
-        "G.DEL.02"
-      ],
-      "name": "业务代码中禁止单次大批量删除数据",
-      "level": "prohibition",
+      "level": "mandatory",
       "gate": "block",
       "scope": [
         "del"
@@ -2907,43 +2367,16 @@
         "mysql",
         "postgresql"
       ],
-      "condition": "业务代码中禁止单次大批量删除数据。可以考虑分批进行删除，减小对正在跑的业务的影响；",
+      "condition": "DELETE 语句必须带能够限定目标行的 WHERE 条件。是否命中主键或索引属于执行计划评审建议，不改变缺少 WHERE 时的 Block。",
       "check": {
-        "kind": "hybrid",
-        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。"
+        "kind": "static",
+        "detector": "静态解析 SQL/代码并结合 schema 判断。"
       },
       "examples": {
-        "positive": "合规证据示例：删除 SQL、影响行数和恢复方案能够证明“业务代码中禁止单次大批量删除数据。可以考虑分批进行删除，减小对正在跑的业务的影响；”。",
-        "negative": "不合规场景：删除 SQL、影响行数和恢复方案缺失，或其内容表明未满足“业务代码中禁止单次大批量删除数据。可以考虑分批进行删除，减小对正在跑的业务的影响；”。"
+        "positive": "delete from t_order where id = ?",
+        "negative": "delete from t_order"
       },
-      "remediation": "按“业务代码中禁止单次大批量删除数据”整改；涉及方言语法时同时应用对应方言规则。",
-      "confirmation_required": true
-    },
-    {
-      "id": "G.DEL.03",
-      "source": [
-        "G.DEL.03"
-      ],
-      "name": "delete语句中避免使用order by、group by子句，避免不必要的排序",
-      "level": "recommendation",
-      "gate": "warn",
-      "scope": [
-        "del"
-      ],
-      "dialects": [
-        "mysql",
-        "postgresql"
-      ],
-      "condition": "delete语句中避免使用order by、group by子句，避免不必要的排序。4.4update",
-      "check": {
-        "kind": "hybrid",
-        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。"
-      },
-      "examples": {
-        "positive": "合规证据示例：删除 SQL、影响行数和恢复方案能够证明“delete语句中避免使用order by、group by子句，避免不必要的排序。4.4update”。",
-        "negative": "不合规场景：删除 SQL、影响行数和恢复方案缺失，或其内容表明未满足“delete语句中避免使用order by、group by子句，避免不必要的排序。4.4update”。"
-      },
-      "remediation": "按“delete语句中避免使用order by、group by子句，避免不必要的排序”整改；涉及方言语法时同时应用对应方言规则。",
+      "remediation": "增加非恒真的 WHERE 条件，并通过执行计划单独评审索引使用。",
       "confirmation_required": false
     },
     {
@@ -2974,60 +2407,6 @@
       "confirmation_required": false
     },
     {
-      "id": "G.UPD.02",
-      "source": [
-        "G.UPD.02"
-      ],
-      "name": "update语句中禁止使用order by子句",
-      "level": "prohibition",
-      "gate": "block",
-      "scope": [
-        "upd"
-      ],
-      "dialects": [
-        "mysql",
-        "postgresql"
-      ],
-      "condition": "update语句中禁止使用order by子句",
-      "check": {
-        "kind": "static",
-        "detector": "静态解析 SQL/代码并结合 schema 判断。"
-      },
-      "examples": {
-        "positive": "按稳定主键范围执行 update",
-        "negative": "update t_order set status = ? where tenant_id = ? order by id"
-      },
-      "remediation": "按“update语句中禁止使用order by子句”整改；涉及方言语法时同时应用对应方言规则。",
-      "confirmation_required": false
-    },
-    {
-      "id": "G.UPD.03",
-      "source": [
-        "G.UPD.03"
-      ],
-      "name": "批量更新必须按稳定键确定处理范围",
-      "level": "prohibition",
-      "gate": "block",
-      "scope": [
-        "upd"
-      ],
-      "dialects": [
-        "mysql",
-        "postgresql"
-      ],
-      "condition": "批量更新必须按稳定键确定处理范围；禁止依赖不确定行集的顶层行数限制语法控制修改数量。",
-      "check": {
-        "kind": "static",
-        "detector": "静态解析 SQL/代码并结合 schema 判断。"
-      },
-      "examples": {
-        "positive": "按 id 范围选定批次后更新",
-        "negative": "update t_order set status = ? where status = ? limit 1000"
-      },
-      "remediation": "按“批量更新必须按稳定键确定处理范围”整改；涉及方言语法时同时应用对应方言规则。",
-      "confirmation_required": false
-    },
-    {
       "id": "G.UPD.04",
       "source": [
         "G.UPD.04"
@@ -3052,60 +2431,6 @@
         "negative": "不合规场景：更新 SQL、稳定键和影响行数缺失，或其内容表明未满足“分片场景update语句where条件需要指定分布列作为等值条件”。"
       },
       "remediation": "按“分片场景update语句where条件需要指定分布列作为等值条件”整改；涉及方言语法时同时应用对应方言规则。",
-      "confirmation_required": false
-    },
-    {
-      "id": "G.UPD.05",
-      "source": [
-        "G.UPD.05"
-      ],
-      "name": "update语句不能同时更新多个表",
-      "level": "prohibition",
-      "gate": "block",
-      "scope": [
-        "upd"
-      ],
-      "dialects": [
-        "mysql",
-        "postgresql"
-      ],
-      "condition": "update语句不能同时更新多个表",
-      "check": {
-        "kind": "hybrid",
-        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。"
-      },
-      "examples": {
-        "positive": "合规证据示例：更新 SQL、稳定键和影响行数能够证明“update语句不能同时更新多个表”。",
-        "negative": "不合规场景：更新 SQL、稳定键和影响行数缺失，或其内容表明未满足“update语句不能同时更新多个表”。"
-      },
-      "remediation": "按“update语句不能同时更新多个表”整改；涉及方言语法时同时应用对应方言规则。",
-      "confirmation_required": false
-    },
-    {
-      "id": "G.UPD.06",
-      "source": [
-        "G.UPD.06"
-      ],
-      "name": "update语句更新多列时被更新列不能是更新源",
-      "level": "prohibition",
-      "gate": "block",
-      "scope": [
-        "upd"
-      ],
-      "dialects": [
-        "mysql",
-        "postgresql"
-      ],
-      "condition": "update语句更新多列时被更新列不能是更新源",
-      "check": {
-        "kind": "hybrid",
-        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。"
-      },
-      "examples": {
-        "positive": "合规证据示例：更新 SQL、稳定键和影响行数能够证明“update语句更新多列时被更新列不能是更新源”。",
-        "negative": "不合规场景：更新 SQL、稳定键和影响行数缺失，或其内容表明未满足“update语句更新多列时被更新列不能是更新源”。"
-      },
-      "remediation": "按“update语句更新多列时被更新列不能是更新源”整改；涉及方言语法时同时应用对应方言规则。",
       "confirmation_required": false
     },
     {
@@ -3433,60 +2758,6 @@
       "confirmation_required": false
     },
     {
-      "id": "G.TXN.07",
-      "source": [
-        "G.TXN.07"
-      ],
-      "name": "未经批准禁止跨资源分布式事务",
-      "level": "prohibition",
-      "gate": "block",
-      "scope": [
-        "txn"
-      ],
-      "dialects": [
-        "mysql",
-        "postgresql"
-      ],
-      "condition": "未经架构与运维批准，禁止使用跨资源分布式事务；具体协议和替代方案按目标数据库与平台评审。",
-      "check": {
-        "kind": "static",
-        "detector": "静态解析 SQL/代码并结合 schema 判断。"
-      },
-      "examples": {
-        "positive": "单库本地事务或已批准的最终一致性方案",
-        "negative": "xa start 'order-and-stock'"
-      },
-      "remediation": "按“未经批准禁止跨资源分布式事务”整改；涉及方言语法时同时应用对应方言规则。",
-      "confirmation_required": false
-    },
-    {
-      "id": "G.TXN.08",
-      "source": [
-        "G.TXN.08"
-      ],
-      "name": "不建议显式加锁",
-      "level": "recommendation",
-      "gate": "warn",
-      "scope": [
-        "txn"
-      ],
-      "dialects": [
-        "mysql",
-        "postgresql"
-      ],
-      "condition": "不建议显式加锁。6 SQL升级规范",
-      "check": {
-        "kind": "hybrid",
-        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。"
-      },
-      "examples": {
-        "positive": "合规证据示例：事务边界、锁和失败恢复流程能够证明“不建议显式加锁。6 SQL升级规范”。",
-        "negative": "不合规场景：事务边界、锁和失败恢复流程缺失，或其内容表明未满足“不建议显式加锁。6 SQL升级规范”。"
-      },
-      "remediation": "按“不建议显式加锁”整改；涉及方言语法时同时应用对应方言规则。",
-      "confirmation_required": false
-    },
-    {
       "id": "G.UPG.01",
       "source": [
         "G.UPG.01"
@@ -3511,33 +2782,6 @@
         "negative": "不合规场景：迁移脚本、演练、备份和回滚记录缺失，或其内容表明未满足“表结构变更前需评估对依赖对象的影响并制定变更方案”。"
       },
       "remediation": "按“表结构变更前需评估对依赖对象的影响并制定变更方案”整改；涉及方言语法时同时应用对应方言规则。",
-      "confirmation_required": true
-    },
-    {
-      "id": "G.UPG.02",
-      "source": [
-        "G.UPG.02"
-      ],
-      "name": "drop表时，先做rename观察后再删除",
-      "level": "mandatory",
-      "gate": "block",
-      "scope": [
-        "upg"
-      ],
-      "dialects": [
-        "mysql",
-        "postgresql"
-      ],
-      "condition": "drop表时，先做rename观察后再删除",
-      "check": {
-        "kind": "hybrid",
-        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。"
-      },
-      "examples": {
-        "positive": "合规证据示例：迁移脚本、演练、备份和回滚记录能够证明“drop表时，先做rename观察后再删除”。",
-        "negative": "不合规场景：迁移脚本、演练、备份和回滚记录缺失，或其内容表明未满足“drop表时，先做rename观察后再删除”。"
-      },
-      "remediation": "按“drop表时，先做rename观察后再删除”整改；涉及方言语法时同时应用对应方言规则。",
       "confirmation_required": true
     },
     {
@@ -3568,60 +2812,6 @@
       "confirmation_required": true
     },
     {
-      "id": "G.UPG.04",
-      "source": [
-        "G.UPG.04"
-      ],
-      "name": "删除分区时按目标数据库能力维护受影响索引",
-      "level": "mandatory",
-      "gate": "block",
-      "scope": [
-        "upg"
-      ],
-      "dialects": [
-        "mysql",
-        "postgresql"
-      ],
-      "condition": "删除分区时必须按目标数据库能力维护所有受影响索引；不得跨方言照搬全局索引语法。",
-      "check": {
-        "kind": "hybrid",
-        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。"
-      },
-      "examples": {
-        "positive": "合规证据示例：迁移脚本、演练、备份和回滚记录能够证明“删除分区时必须按目标数据库能力维护所有受影响索引；不得跨方言照搬全局索引语法。”。",
-        "negative": "不合规场景：迁移脚本、演练、备份和回滚记录缺失，或其内容表明未满足“删除分区时必须按目标数据库能力维护所有受影响索引；不得跨方言照搬全局索引语法。”。"
-      },
-      "remediation": "按“删除分区时按目标数据库能力维护受影响索引”整改；涉及方言语法时同时应用对应方言规则。",
-      "confirmation_required": true
-    },
-    {
-      "id": "G.UPG.05",
-      "source": [
-        "G.UPG.05"
-      ],
-      "name": "禁止修改字段类型",
-      "level": "prohibition",
-      "gate": "block",
-      "scope": [
-        "upg"
-      ],
-      "dialects": [
-        "mysql",
-        "postgresql"
-      ],
-      "condition": "禁止修改字段类型",
-      "check": {
-        "kind": "static",
-        "detector": "静态解析 SQL/代码并结合 schema 判断。"
-      },
-      "examples": {
-        "positive": "新增目标类型字段并迁移验证",
-        "negative": "alter table t_order alter column amount type numeric(20,2)"
-      },
-      "remediation": "按“禁止修改字段类型”整改；涉及方言语法时同时应用对应方言规则。",
-      "confirmation_required": true
-    },
-    {
       "id": "G.UPG.06",
       "source": [
         "G.UPG.06"
@@ -3646,60 +2836,6 @@
         "negative": "不合规场景：迁移脚本、演练、备份和回滚记录缺失，或其内容表明未满足“禁止缩短字段长度”。"
       },
       "remediation": "按“禁止缩短字段长度”整改；涉及方言语法时同时应用对应方言规则。",
-      "confirmation_required": true
-    },
-    {
-      "id": "G.UPG.07",
-      "source": [
-        "G.UPG.07"
-      ],
-      "name": "禁止增加not null字段",
-      "level": "prohibition",
-      "gate": "block",
-      "scope": [
-        "upg"
-      ],
-      "dialects": [
-        "mysql",
-        "postgresql"
-      ],
-      "condition": "禁止增加not null字段",
-      "check": {
-        "kind": "static",
-        "detector": "静态解析 SQL/代码并结合 schema 判断。"
-      },
-      "examples": {
-        "positive": "先增加可空字段并分批回填",
-        "negative": "alter table t_order add column region_code varchar(32) not null"
-      },
-      "remediation": "按“禁止增加not null字段”整改；涉及方言语法时同时应用对应方言规则。",
-      "confirmation_required": true
-    },
-    {
-      "id": "G.UPG.08",
-      "source": [
-        "G.UPG.08"
-      ],
-      "name": "禁止将已有的null字段为not null",
-      "level": "prohibition",
-      "gate": "block",
-      "scope": [
-        "upg"
-      ],
-      "dialects": [
-        "mysql",
-        "postgresql"
-      ],
-      "condition": "禁止将已有的null字段为not null",
-      "check": {
-        "kind": "static",
-        "detector": "静态解析 SQL/代码并结合 schema 判断。"
-      },
-      "examples": {
-        "positive": "保持字段可空或采用替代表迁移方案",
-        "negative": "alter table t_order alter column region_code set not null"
-      },
-      "remediation": "按“禁止将已有的null字段为not null”整改；涉及方言语法时同时应用对应方言规则。",
       "confirmation_required": true
     },
     {
@@ -3781,60 +2917,6 @@
         "negative": "drop table t_order"
       },
       "remediation": "按“drop表时必须有if exist子句”整改；涉及方言语法时同时应用对应方言规则。",
-      "confirmation_required": true
-    },
-    {
-      "id": "G.UPG.12",
-      "source": [
-        "G.UPG.12"
-      ],
-      "name": "生产索引变更使用目标数据库在线或并发能力",
-      "level": "mandatory",
-      "gate": "block",
-      "scope": [
-        "upg"
-      ],
-      "dialects": [
-        "mysql",
-        "postgresql"
-      ],
-      "condition": "生产环境创建索引必须采用目标数据库支持的在线/并发方式，并评估锁影响。",
-      "check": {
-        "kind": "hybrid",
-        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。"
-      },
-      "examples": {
-        "positive": "合规证据示例：迁移脚本、演练、备份和回滚记录能够证明“生产环境创建索引必须采用目标数据库支持的在线/并发方式，并评估锁影响。”。",
-        "negative": "不合规场景：迁移脚本、演练、备份和回滚记录缺失，或其内容表明未满足“生产环境创建索引必须采用目标数据库支持的在线/并发方式，并评估锁影响。”。"
-      },
-      "remediation": "按“生产索引变更使用目标数据库在线或并发能力”整改；涉及方言语法时同时应用对应方言规则。",
-      "confirmation_required": true
-    },
-    {
-      "id": "G.UPG.13",
-      "source": [
-        "G.UPG.13"
-      ],
-      "name": "生产环境表结构变更必须在业务低谷期进行",
-      "level": "mandatory",
-      "gate": "block",
-      "scope": [
-        "upg"
-      ],
-      "dialects": [
-        "mysql",
-        "postgresql"
-      ],
-      "condition": "生产环境表结构变更必须在业务低谷期进行。7.安全规范",
-      "check": {
-        "kind": "hybrid",
-        "detector": "静态筛查候选项，并结合 schema、执行计划或业务语义确认。"
-      },
-      "examples": {
-        "positive": "合规证据示例：迁移脚本、演练、备份和回滚记录能够证明“生产环境表结构变更必须在业务低谷期进行。7.安全规范”。",
-        "negative": "不合规场景：迁移脚本、演练、备份和回滚记录缺失，或其内容表明未满足“生产环境表结构变更必须在业务低谷期进行。7.安全规范”。"
-      },
-      "remediation": "按“生产环境表结构变更必须在业务低谷期进行”整改；涉及方言语法时同时应用对应方言规则。",
       "confirmation_required": true
     },
     {

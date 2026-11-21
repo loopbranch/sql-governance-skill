@@ -29,6 +29,10 @@
 - 覆盖 PostgreSQL `FULL OUTER JOIN`、`ALTER COLUMN`、表级 serial/identity 主键、临时表和 CTE INSERT。
 - 按方言处理 `#`，检查所有 MySQL 字符集声明，并将 PostgreSQL 并发索引保留为上下文相关的 hybrid 规则。
 - 公共规则严重级别读取完整条款，正反例改为可执行 SQL 或具体证据场景；`static` 与脚本实际覆盖保持一致。
+- 修复 Markdown 导入器删除 `select *`、`count(*)` 中星号的问题，并增加语义快照测试。
+- lexer 按 MySQL 5.7 与 PostgreSQL 16 分别处理 `--`、反斜杠字符串、`#` 和嵌套块注释。
+- 递归检查 PostgreSQL data-modifying CTE，补齐 UUID 主键类型、弱方言线索和方言 static 清单门禁。
+- 将 34 个存在差异的源条款从公共目录移出并成对拆为 MySQL/PostgreSQL 规则；每个加载路径仍完整覆盖 154 个源条款。
 
 ## [1.0.0] - 2026-11-21
 

@@ -4,68 +4,722 @@
   "description": "MySQL-specific rules. Apply after common.json; never apply these syntax requirements to PostgreSQL.",
   "rules": [
     {
-      "id": "MYSQL-ENC-001", "source": ["G.DBS.01", "G.DBS.05", "G.TAB.05"], "name": "MySQL 使用 utf8mb4 和统一排序规则",
-      "level": "mandatory", "gate": "block", "scope": ["encoding", "collation", "ddl"], "dialects": ["mysql"],
+      "id": "MYSQL-ENC-001",
+      "source": [
+        "G.DBS.01",
+        "G.DBS.05",
+        "G.TAB.05"
+      ],
+      "name": "MySQL 使用 utf8mb4 和统一排序规则",
+      "level": "mandatory",
+      "gate": "block",
+      "scope": [
+        "encoding",
+        "collation",
+        "ddl"
+      ],
+      "dialects": [
+        "mysql"
+      ],
       "condition": "客户端与数据库、表、字符字段统一使用 utf8mb4。MySQL 5.7 默认排序规则采用 utf8mb4_general_ci；表不得擅自覆盖，字段级 bin/unicode 例外必须评审。",
-      "check": {"kind": "hybrid", "detector": "解析 DEFAULT CHARSET、CHARACTER SET、COLLATE 并核对连接和实例变量。"},
-      "examples": {"positive": "engine=InnoDB default charset=utf8mb4", "negative": "default charset=utf8 或在表级覆盖不同 COLLATE"},
-      "remediation": "统一为 utf8mb4；例外记录排序语义和索引影响。", "confirmation_required": true
+      "check": {
+        "kind": "hybrid",
+        "detector": "解析 DEFAULT CHARSET、CHARACTER SET、COLLATE 并核对连接和实例变量。"
+      },
+      "examples": {
+        "positive": "engine=InnoDB default charset=utf8mb4",
+        "negative": "default charset=utf8 或在表级覆盖不同 COLLATE"
+      },
+      "remediation": "统一为 utf8mb4；例外记录排序语义和索引影响。",
+      "confirmation_required": true
     },
     {
-      "id": "MYSQL-TAB-001", "source": ["G.TAB.01"], "name": "MySQL 表使用 InnoDB",
-      "level": "mandatory", "gate": "block", "scope": ["table", "ddl"], "dialects": ["mysql"],
+      "id": "MYSQL-TAB-001",
+      "source": [
+        "G.TAB.01"
+      ],
+      "name": "MySQL 表使用 InnoDB",
+      "level": "mandatory",
+      "gate": "block",
+      "scope": [
+        "table",
+        "ddl"
+      ],
+      "dialects": [
+        "mysql"
+      ],
       "condition": "新建 MySQL 表必须使用 InnoDB，或提供实例默认引擎为 InnoDB 的证据。",
-      "check": {"kind": "hybrid", "detector": "解析 ENGINE；缺失时核对 default_storage_engine。"},
-      "examples": {"positive": "engine=InnoDB", "negative": "engine=MyISAM"},
-      "remediation": "改用 InnoDB 并评估事务、锁和迁移时间。", "confirmation_required": true
+      "check": {
+        "kind": "hybrid",
+        "detector": "解析 ENGINE；缺失时核对 default_storage_engine。"
+      },
+      "examples": {
+        "positive": "engine=InnoDB",
+        "negative": "engine=MyISAM"
+      },
+      "remediation": "改用 InnoDB 并评估事务、锁和迁移时间。",
+      "confirmation_required": true
     },
     {
-      "id": "MYSQL-TIME-001", "source": ["G.TAB.15"], "name": "MySQL 时间类型按时区语义选择",
-      "level": "mandatory", "gate": "block", "scope": ["column", "time"], "dialects": ["mysql"],
+      "id": "MYSQL-TIME-001",
+      "source": [
+        "G.TAB.15"
+      ],
+      "name": "MySQL 时间类型按时区语义选择",
+      "level": "mandatory",
+      "gate": "block",
+      "scope": [
+        "column",
+        "time"
+      ],
+      "dialects": [
+        "mysql"
+      ],
       "condition": "不需要会话时区转换的业务本地时间使用 DATETIME；表示绝对时间点并明确依赖会话时区转换时才使用 TIMESTAMP，同时评估 MySQL 5.7 范围、精度和分区限制。",
-      "check": {"kind": "manual", "detector": "核对业务语义、会话时区、时间范围、精度和分区键。"},
-      "examples": {"positive": "created_at datetime(3) 表示录入的业务本地时间", "negative": "未定义时区语义就混用 datetime、timestamp、timestamp(6)"},
-      "remediation": "统一字段语义与类型，记录服务和会话时区策略。", "confirmation_required": true
+      "check": {
+        "kind": "manual",
+        "detector": "核对业务语义、会话时区、时间范围、精度和分区键。"
+      },
+      "examples": {
+        "positive": "created_at datetime(3) 表示录入的业务本地时间",
+        "negative": "未定义时区语义就混用 datetime、timestamp、timestamp(6)"
+      },
+      "remediation": "统一字段语义与类型，记录服务和会话时区策略。",
+      "confirmation_required": true
     },
     {
-      "id": "MYSQL-IDX-001", "source": ["G.IDX.06", "G.IDX.07"], "name": "MySQL 长字符串使用受控前缀索引",
-      "level": "prohibition", "gate": "block", "scope": ["index", "performance"], "dialects": ["mysql"],
+      "id": "MYSQL-IDX-001",
+      "source": [
+        "G.IDX.06",
+        "G.IDX.07"
+      ],
+      "name": "MySQL 长字符串使用受控前缀索引",
+      "level": "prohibition",
+      "gate": "block",
+      "scope": [
+        "index",
+        "performance"
+      ],
+      "dialects": [
+        "mysql"
+      ],
       "condition": "TEXT/BLOB 和超长 VARCHAR 禁止直接建立普通全长索引；VARCHAR 长度大于 50 时按查询需求评估前缀索引，累计索引长度建议不超过 200 字节。",
-      "check": {"kind": "hybrid", "detector": "结合列类型、字符集字节数、索引前缀和真实选择度判断。"},
-      "examples": {"positive": "index idx_title(title(32)) 并验证选择度", "negative": "index idx_body(body) 直接索引长文本"},
-      "remediation": "使用合适前缀、生成列或全文索引并用 EXPLAIN 验证。", "confirmation_required": true
+      "check": {
+        "kind": "hybrid",
+        "detector": "结合列类型、字符集字节数、索引前缀和真实选择度判断。"
+      },
+      "examples": {
+        "positive": "index idx_title(title(32)) 并验证选择度",
+        "negative": "index idx_body(body) 直接索引长文本"
+      },
+      "remediation": "使用合适前缀、生成列或全文索引并用 EXPLAIN 验证。",
+      "confirmation_required": true
     },
     {
-      "id": "MYSQL-PK-001", "source": ["G.IDX.11"], "name": "MySQL 禁止自增主键并高效存储 UUID",
-      "level": "prohibition", "gate": "block", "scope": ["primary-key", "sharding"], "dialects": ["mysql"],
+      "id": "MYSQL-PK-001",
+      "source": [
+        "G.IDX.11"
+      ],
+      "name": "MySQL 禁止自增主键并高效存储 UUID",
+      "level": "prohibition",
+      "gate": "block",
+      "scope": [
+        "primary-key",
+        "sharding"
+      ],
+      "dialects": [
+        "mysql"
+      ],
       "condition": "新表主键不得使用 AUTO_INCREMENT；有序 UUID 优先 UUIDv7，并以 BINARY(16) 存储，不使用 CHAR/VARCHAR UUID 文本。",
-      "check": {"kind": "static", "detector": "解析主键列的 AUTO_INCREMENT、类型和长度。"},
-      "examples": {"positive": "id binary(16) not null primary key", "negative": "id bigint auto_increment primary key"},
-      "remediation": "使用分布式有序 ID；UUID 转换为 16 字节存储。", "confirmation_required": true
+      "check": {
+        "kind": "static",
+        "detector": "解析主键列的 AUTO_INCREMENT、类型和长度。"
+      },
+      "examples": {
+        "positive": "id binary(16) not null primary key",
+        "negative": "id bigint auto_increment primary key"
+      },
+      "remediation": "使用分布式有序 ID；UUID 转换为 16 字节存储。",
+      "confirmation_required": true
     },
     {
-      "id": "MYSQL-DDL-001", "source": ["G.UPG.12", "G.UPG.13"], "name": "MySQL 在线低峰创建索引",
-      "level": "mandatory", "gate": "block", "scope": ["index", "migration"], "dialects": ["mysql"],
+      "id": "MYSQL-DDL-001",
+      "source": [
+        "G.UPG.12",
+        "G.UPG.13"
+      ],
+      "name": "MySQL 在线低峰创建索引",
+      "level": "mandatory",
+      "gate": "block",
+      "scope": [
+        "index",
+        "migration"
+      ],
+      "dialects": [
+        "mysql"
+      ],
       "condition": "生产索引变更必须验证目标版本支持的 ALGORITHM/LOCK 行为，优先 ALGORITHM=INPLACE、LOCK=NONE 或已批准的在线变更工具，并在低峰执行。",
-      "check": {"kind": "manual", "detector": "核对版本、DDL 计划、锁时长、监控终止阈值和回滚。"},
-      "examples": {"positive": "在同版本副本验证 ALGORITHM=INPLACE, LOCK=NONE", "negative": "高峰期直接执行可能 COPY/锁表的 ALTER TABLE"},
-      "remediation": "补充兼容性演练和低峰窗口；不支持在线方式时走 DBA 评审。", "confirmation_required": true
+      "check": {
+        "kind": "manual",
+        "detector": "核对版本、DDL 计划、锁时长、监控终止阈值和回滚。"
+      },
+      "examples": {
+        "positive": "在同版本副本验证 ALGORITHM=INPLACE, LOCK=NONE",
+        "negative": "高峰期直接执行可能 COPY/锁表的 ALTER TABLE"
+      },
+      "remediation": "补充兼容性演练和低峰窗口；不支持在线方式时走 DBA 评审。",
+      "confirmation_required": true
     },
     {
-      "id": "MYSQL-PART-001", "source": ["G.TAB.18", "G.TAB.19", "G.UPG.04"], "name": "MySQL 分区按本地索引能力管理",
-      "level": "mandatory", "gate": "block", "scope": ["partition", "index"], "dialects": ["mysql"],
+      "id": "MYSQL-PART-001",
+      "source": [
+        "G.TAB.18",
+        "G.TAB.19",
+        "G.UPG.04"
+      ],
+      "name": "MySQL 分区按本地索引能力管理",
+      "level": "mandatory",
+      "gate": "block",
+      "scope": [
+        "partition",
+        "index"
+      ],
+      "dialects": [
+        "mysql"
+      ],
       "condition": "分区表必须验证分区裁剪、唯一键包含分区键等 MySQL 限制；不得套用其他数据库的全局索引语法。分区删除前核对索引、备份和回滚。",
-      "check": {"kind": "manual", "detector": "核对 SHOW CREATE TABLE、EXPLAIN PARTITIONS、唯一键和清理方案。"},
-      "examples": {"positive": "EXPLAIN PARTITIONS 证明查询裁剪", "negative": "假设 MySQL 存在可单独 UPDATE 的全局索引"},
-      "remediation": "按目标 MySQL 版本能力重写分区/索引方案。", "confirmation_required": true
+      "check": {
+        "kind": "manual",
+        "detector": "核对 SHOW CREATE TABLE、EXPLAIN PARTITIONS、唯一键和清理方案。"
+      },
+      "examples": {
+        "positive": "EXPLAIN PARTITIONS 证明查询裁剪",
+        "negative": "假设 MySQL 存在可单独 UPDATE 的全局索引"
+      },
+      "remediation": "按目标 MySQL 版本能力重写分区/索引方案。",
+      "confirmation_required": true
     },
     {
-      "id": "MYSQL-UPD-001", "source": ["G.UPD.03", "G.DEL.02"], "name": "MySQL 禁止用 LIMIT 掩盖批量更新风险",
-      "level": "prohibition", "gate": "block", "scope": ["update", "data-fix"], "dialects": ["mysql"],
+      "id": "MYSQL-UPD-001",
+      "source": [
+        "G.UPD.03",
+        "G.DEL.02"
+      ],
+      "name": "MySQL 禁止用 LIMIT 掩盖批量更新风险",
+      "level": "prohibition",
+      "gate": "block",
+      "scope": [
+        "update",
+        "data-fix"
+      ],
+      "dialects": [
+        "mysql"
+      ],
       "condition": "UPDATE 不得直接用 LIMIT 控制修改行数；批处理必须使用稳定主键范围、明确顺序、小事务和可恢复进度。",
-      "check": {"kind": "static", "detector": "解析 UPDATE 顶层 LIMIT。"},
-      "examples": {"positive": "按 id 范围分批提交", "negative": "update t_order set status=? limit 1000"},
-      "remediation": "改为稳定键范围批处理并进入数据确认流程。", "confirmation_required": true
+      "check": {
+        "kind": "static",
+        "detector": "解析 UPDATE 顶层 LIMIT。"
+      },
+      "examples": {
+        "positive": "按 id 范围分批提交",
+        "negative": "update t_order set status=? limit 1000"
+      },
+      "remediation": "改为稳定键范围批处理并进入数据确认流程。",
+      "confirmation_required": true
+    },
+    {
+      "id": "MYSQL-DBS-002",
+      "source": [
+        "G.DBS.02"
+      ],
+      "name": "MySQL 服务边界使用独立数据库",
+      "level": "mandatory",
+      "gate": "block",
+      "scope": [
+        "dbs"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 中 SCHEMA 是 DATABASE 的同义词；每个服务使用独立 database，并以账号权限控制跨库访问。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "按方言语法静态筛查，并结合版本、schema 或执行上下文确认。"
+      },
+      "examples": {
+        "positive": "create database order_service",
+        "negative": "把 PostgreSQL search_path 当成 MySQL schema 隔离机制"
+      },
+      "remediation": "按 MySQL 服务边界使用独立数据库 整改；规范依据见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-TAB-013",
+      "source": [
+        "G.TAB.13"
+      ],
+      "name": "MySQL 表和字段使用 COMMENT 子句",
+      "level": "mandatory",
+      "gate": "block",
+      "scope": [
+        "tab"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 在 CREATE/ALTER TABLE 的表选项与列定义中维护 COMMENT；变更时避免覆盖既有属性。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "按方言语法静态筛查，并结合版本、schema 或执行上下文确认。"
+      },
+      "examples": {
+        "positive": "create table t_user (id bigint comment '主键') comment='用户'",
+        "negative": "使用 PostgreSQL COMMENT ON 语法"
+      },
+      "remediation": "按 MySQL 表和字段使用 COMMENT 子句 整改；规范依据见 references/dialect-spec-sources.md。",
+      "confirmation_required": true
+    },
+    {
+      "id": "MYSQL-NAM-001",
+      "source": [
+        "G.NAM.01"
+      ],
+      "name": "MySQL 标识符避开 5.7 保留字",
+      "level": "prohibition",
+      "gate": "block",
+      "scope": [
+        "nam"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "对象名不得与 MySQL 5.7 reserved words 或系统 schema/object 重名；确需使用时仍应重命名而非依赖反引号。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "按方言语法静态筛查，并结合版本、schema 或执行上下文确认。"
+      },
+      "examples": {
+        "positive": "order_item",
+        "negative": "`order`"
+      },
+      "remediation": "按 MySQL 标识符避开 5.7 保留字 整改；规范依据见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-NAM-003",
+      "source": [
+        "G.NAM.03"
+      ],
+      "name": "MySQL 对象名遵守各类字符上限",
+      "level": "prohibition",
+      "gate": "block",
+      "scope": [
+        "nam"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 的 database/table/column/index/constraint 等多数标识符上限为 64 个字符；本规范为分片后缀预留空间时采用更短的项目上限。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "按方言语法静态筛查，并结合版本、schema 或执行上下文确认。"
+      },
+      "examples": {
+        "positive": "长度不超过项目上限且给分片后缀留余量",
+        "negative": "假设所有 MySQL 标识符都按 PostgreSQL 的 63 字节截断"
+      },
+      "remediation": "按 MySQL 对象名遵守各类字符上限 整改；规范依据见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-SEL-001",
+      "source": [
+        "G.SEL.01"
+      ],
+      "name": "MySQL 生产查询避免未经验证的 optimizer/index hints",
+      "level": "recommendation",
+      "gate": "warn",
+      "scope": [
+        "sel"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 支持 /*+ ... */ optimizer hints 与 USE/FORCE/IGNORE INDEX；只有在同版本统计信息与回归测试证明必要时才使用。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "按方言语法静态筛查，并结合版本、schema 或执行上下文确认。"
+      },
+      "examples": {
+        "positive": "无 hint，或记录 EXPLAIN 与版本证据",
+        "negative": "长期保留未经验证的 FORCE INDEX"
+      },
+      "remediation": "按 MySQL 生产查询避免未经验证的 optimizer/index hints 整改；规范依据见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-SEL-005",
+      "source": [
+        "G.SEL.05"
+      ],
+      "name": "MySQL 允许无 FROM 的标量 SELECT",
+      "level": "reference",
+      "gate": "info",
+      "scope": [
+        "sel"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 允许 SELECT 1 等无 FROM 查询；不得仅因子查询缺少 FROM 判违规，需按真实 SELECT 语法判断。",
+      "check": {
+        "kind": "manual",
+        "detector": "只核对语法事实，不因缺少 FROM 阻断。"
+      },
+      "examples": {
+        "positive": "select 1",
+        "negative": "虚构必须添加 FROM dual 的语法要求"
+      },
+      "remediation": "按 MySQL 允许无 FROM 的标量 SELECT 整改；规范依据见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-SEL-008",
+      "source": [
+        "G.SEL.08"
+      ],
+      "name": "MySQL 禁止 CROSS JOIN；FULL OUTER JOIN 不受 5.7 支持",
+      "level": "prohibition",
+      "gate": "block",
+      "scope": [
+        "sel"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 将 JOIN、CROSS JOIN 与 INNER JOIN 视为语法等价形式，但不支持 FULL OUTER JOIN；门禁禁止笛卡尔连接并将 FULL 语法报告为方言错误。",
+      "check": {
+        "kind": "static",
+        "detector": "由 sql_guard.py 按方言语法解析并阻断。"
+      },
+      "examples": {
+        "positive": "inner join t_b on t_b.id=t_a.id",
+        "negative": "cross join t_b 或 full outer join t_b"
+      },
+      "remediation": "按 MySQL 禁止 CROSS JOIN；FULL OUTER JOIN 不受 5.7 支持 整改；规范依据见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-SEL-017",
+      "source": [
+        "G.SEL.17"
+      ],
+      "name": "MySQL 聚合查询不依赖 NOT FOUND 处理空集",
+      "level": "prohibition",
+      "gate": "block",
+      "scope": [
+        "sel"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 聚合函数的空集结果与存储程序 NOT FOUND handler 是不同机制；按各聚合函数的 NULL/行返回语义处理，不套用 Oracle NO_DATA_FOUND。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "按方言语法静态筛查，并结合版本、schema 或执行上下文确认。"
+      },
+      "examples": {
+        "positive": "显式处理 sum/avg 的 NULL",
+        "negative": "用 Oracle NO_DATA_FOUND 推断 MySQL 聚合空集"
+      },
+      "remediation": "按 MySQL 聚合查询不依赖 NOT FOUND 处理空集 整改；规范依据见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-SEL-035",
+      "source": [
+        "G.SEL.35"
+      ],
+      "name": "MySQL 不依赖存储引擎内部行标识",
+      "level": "mandatory",
+      "gate": "block",
+      "scope": [
+        "sel"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 SQL 不提供可移植的物理行伪列；业务必须使用显式主键，不得依赖 InnoDB 内部生成的聚簇键。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "按方言语法静态筛查，并结合版本、schema 或执行上下文确认。"
+      },
+      "examples": {
+        "positive": "where id=?",
+        "negative": "依赖未声明的存储引擎内部 row id"
+      },
+      "remediation": "按 MySQL 不依赖存储引擎内部行标识 整改；规范依据见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-DEL-003",
+      "source": [
+        "G.DEL.03"
+      ],
+      "name": "MySQL DELETE 避免 ORDER BY/LIMIT 作为批处理边界",
+      "level": "recommendation",
+      "gate": "warn",
+      "scope": [
+        "del"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 单表 DELETE 支持 ORDER BY 与 LIMIT，但治理批处理必须使用稳定主键范围和可恢复进度；多表 DELETE 不支持这些子句。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "按方言语法静态筛查，并结合版本、schema 或执行上下文确认。"
+      },
+      "examples": {
+        "positive": "delete from t where id between ? and ?",
+        "negative": "delete from t order by created_at limit 1000"
+      },
+      "remediation": "按 MySQL DELETE 避免 ORDER BY/LIMIT 作为批处理边界 整改；规范依据见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-UPD-002",
+      "source": [
+        "G.UPD.02"
+      ],
+      "name": "MySQL 禁止依赖 UPDATE ORDER BY",
+      "level": "prohibition",
+      "gate": "block",
+      "scope": [
+        "upd"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 单表 UPDATE 支持 ORDER BY，但治理策略禁止依赖更新顺序；多表 UPDATE 不支持 ORDER BY。",
+      "check": {
+        "kind": "static",
+        "detector": "由 sql_guard.py 按方言语法解析并阻断。"
+      },
+      "examples": {
+        "positive": "按主键范围更新",
+        "negative": "update t set ... order by id"
+      },
+      "remediation": "按 MySQL 禁止依赖 UPDATE ORDER BY 整改；规范依据见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-UPD-005",
+      "source": [
+        "G.UPD.05"
+      ],
+      "name": "MySQL 禁止 multiple-table UPDATE",
+      "level": "prohibition",
+      "gate": "block",
+      "scope": [
+        "upd"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 支持 multiple-table UPDATE，但治理策略禁止一次修改多个目标表；拆为确定事务顺序的单表语句。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "按方言语法静态筛查，并结合版本、schema 或执行上下文确认。"
+      },
+      "examples": {
+        "positive": "事务内按固定顺序更新单表",
+        "negative": "update t1 join t2 ... set t1.x=1,t2.y=2"
+      },
+      "remediation": "按 MySQL 禁止 multiple-table UPDATE 整改；规范依据见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-UPD-006",
+      "source": [
+        "G.UPD.06"
+      ],
+      "name": "MySQL UPDATE 多列赋值避免依赖从左到右求值",
+      "level": "prohibition",
+      "gate": "block",
+      "scope": [
+        "upd"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 单表 UPDATE 赋值通常从左到右，后续表达式可能读取已更新值；多表 UPDATE 顺序无保证，因此禁止列间依赖。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "按方言语法静态筛查，并结合版本、schema 或执行上下文确认。"
+      },
+      "examples": {
+        "positive": "set a=?, b=?",
+        "negative": "set a=a+1, b=a"
+      },
+      "remediation": "按 MySQL UPDATE 多列赋值避免依赖从左到右求值 整改；规范依据见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-TXN-007",
+      "source": [
+        "G.TXN.07"
+      ],
+      "name": "MySQL XA 事务必须经过架构与运维批准",
+      "level": "prohibition",
+      "gate": "block",
+      "scope": [
+        "txn"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 提供 XA START/END/PREPARE/COMMIT/ROLLBACK；未经批准禁止使用，优先本地事务与可恢复最终一致性。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "按方言语法静态筛查，并结合版本、schema 或执行上下文确认。"
+      },
+      "examples": {
+        "positive": "单库本地事务",
+        "negative": "xa start 'xid'"
+      },
+      "remediation": "按 MySQL XA 事务必须经过架构与运维批准 整改；规范依据见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-TXN-008",
+      "source": [
+        "G.TXN.08"
+      ],
+      "name": "MySQL 显式锁需评审 InnoDB 锁范围",
+      "level": "recommendation",
+      "gate": "warn",
+      "scope": [
+        "txn"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "避免无依据使用 LOCK TABLES、SELECT ... FOR UPDATE/SHARE 与 GET_LOCK；必须结合隔离级别、索引和 gap/next-key locks 评审。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "按方言语法静态筛查，并结合版本、schema 或执行上下文确认。"
+      },
+      "examples": {
+        "positive": "短事务且谓词命中唯一索引",
+        "negative": "无界 select ... for update"
+      },
+      "remediation": "按 MySQL 显式锁需评审 InnoDB 锁范围 整改；规范依据见 references/dialect-spec-sources.md。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-UPG-002",
+      "source": [
+        "G.UPG.02"
+      ],
+      "name": "MySQL 删除表前按 RENAME TABLE 观察",
+      "level": "mandatory",
+      "gate": "block",
+      "scope": [
+        "upg"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 使用 RENAME TABLE old TO quarantined 原子改名后观察；必须评估外键、触发器、视图和跨 schema 权限。",
+      "check": {
+        "kind": "hybrid",
+        "detector": "按方言语法静态筛查，并结合版本、schema 或执行上下文确认。"
+      },
+      "examples": {
+        "positive": "rename table t_old to t_old_quarantine",
+        "negative": "直接 drop table t_old"
+      },
+      "remediation": "按 MySQL 删除表前按 RENAME TABLE 观察 整改；规范依据见 references/dialect-spec-sources.md。",
+      "confirmation_required": true
+    },
+    {
+      "id": "MYSQL-UPG-005",
+      "source": [
+        "G.UPG.05"
+      ],
+      "name": "MySQL 禁止直接 MODIFY/CHANGE 字段类型",
+      "level": "prohibition",
+      "gate": "block",
+      "scope": [
+        "upg"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 通过 ALTER TABLE ... MODIFY/CHANGE 改类型，可能重建表或转换数据；使用扩展-回填-切换-收缩方案。",
+      "check": {
+        "kind": "static",
+        "detector": "由 sql_guard.py 按方言语法解析并阻断。"
+      },
+      "examples": {
+        "positive": "新增目标列并分批回填",
+        "negative": "alter table t modify column amount decimal(20,2)"
+      },
+      "remediation": "按 MySQL 禁止直接 MODIFY/CHANGE 字段类型 整改；规范依据见 references/dialect-spec-sources.md。",
+      "confirmation_required": true
+    },
+    {
+      "id": "MYSQL-UPG-007",
+      "source": [
+        "G.UPG.07"
+      ],
+      "name": "MySQL 禁止直接增加 NOT NULL 字段",
+      "level": "prohibition",
+      "gate": "block",
+      "scope": [
+        "upg"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 新增 NOT NULL 列可能填充隐式/显式默认值并触发表重建；先加可空列、回填、验证再收紧。",
+      "check": {
+        "kind": "static",
+        "detector": "由 sql_guard.py 按方言语法解析并阻断。"
+      },
+      "examples": {
+        "positive": "add column region varchar(32) null",
+        "negative": "add column region varchar(32) not null"
+      },
+      "remediation": "按 MySQL 禁止直接增加 NOT NULL 字段 整改；规范依据见 references/dialect-spec-sources.md。",
+      "confirmation_required": true
+    },
+    {
+      "id": "MYSQL-UPG-008",
+      "source": [
+        "G.UPG.08"
+      ],
+      "name": "MySQL 禁止直接 MODIFY 字段为 NOT NULL",
+      "level": "prohibition",
+      "gate": "block",
+      "scope": [
+        "upg"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "MySQL 5.7 使用 MODIFY/CHANGE 重述完整列定义来收紧 NULL 属性，存在属性丢失与锁风险；先回填和验证。",
+      "check": {
+        "kind": "static",
+        "detector": "由 sql_guard.py 按方言语法解析并阻断。"
+      },
+      "examples": {
+        "positive": "回填 NULL 并验证后走批准变更",
+        "negative": "alter table t modify region varchar(32) not null"
+      },
+      "remediation": "按 MySQL 禁止直接 MODIFY 字段为 NOT NULL 整改；规范依据见 references/dialect-spec-sources.md。",
+      "confirmation_required": true
     }
   ]
 }

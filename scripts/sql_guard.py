@@ -27,15 +27,39 @@ class Finding:
 
 
 COMMON_GUARD_RULES = {
-    "G.DEL.01", "G.INS.01", "G.SEL.08", "G.SEL.12", "G.TAB.04",
-    "G.TAB.16", "G.TXN.01", "G.TXN.07", "G.UPD.01", "G.UPD.02",
-    "G.UPD.03", "G.UPG.03", "G.UPG.05", "G.UPG.07", "G.UPG.08",
-    "G.UPG.10", "G.UPG.11",
+    "G.DEL.01", "G.INS.01", "G.SEL.12", "G.TAB.04",
+    "G.TAB.16", "G.TXN.01", "G.UPD.01", "G.UPG.03", "G.UPG.10",
+    "G.UPG.11",
 }
 DIALECT_GUARD_RULES = {
-    "mysql": {"MYSQL-ENC-001", "MYSQL-PK-001", "MYSQL-TAB-001"},
-    "postgresql": {"POSTGRESQL-PK-001", "POSTGRESQL-TAB-001"},
+    "mysql": {
+        "MYSQL-ENC-001", "MYSQL-PK-001", "MYSQL-SEL-008", "MYSQL-TAB-001",
+        "MYSQL-TXN-007", "MYSQL-UPD-001", "MYSQL-UPD-002", "MYSQL-UPG-005",
+        "MYSQL-UPG-007", "MYSQL-UPG-008",
+    },
+    "postgresql": {
+        "POSTGRESQL-PK-001", "POSTGRESQL-SEL-008", "POSTGRESQL-TAB-001",
+        "POSTGRESQL-TXN-007", "POSTGRESQL-UPD-001", "POSTGRESQL-UPD-002",
+        "POSTGRESQL-UPG-005", "POSTGRESQL-UPG-007", "POSTGRESQL-UPG-008",
+    },
 }
+
+
+def starts_line_comment(sql: str, index: int, dialect: str | None) -> bool:
+    """Return whether the token at index starts a dialect-valid line comment."""
+    if sql[index:index + 2] != "--":
+        return sql[index:index + 1] == "#" and dialect == "mysql"
+    if dialect != "mysql":
+        return True
+    next_index = index + 2
+    return next_index >= len(sql) or sql[next_index].isspace() or ord(sql[next_index]) < 32
+
+
+def quote_uses_backslash(sql: str, index: int, dialect: str | None, quote: str) -> bool:
+    """Model server defaults: MySQL escapes backslashes; PostgreSQL only does so in E''."""
+    if dialect == "mysql":
+        return True
+    return dialect == "postgresql" and quote == "'" and index > 0 and sql[index - 1:index].lower() == "e"
 
 
 def split_statements(sql: str, dialect: str | None = None) -> list[tuple[int, str]]:
@@ -44,7 +68,7 @@ def split_statements(sql: str, dialect: str | None = None) -> list[tuple[int, st
     start, line, start_line, index = 0, 1, 1, 0
     quote: str | None = None
     dollar: str | None = None
-    block_comment = False
+    block_comment_depth = 0
     line_comment = False
     while index < len(sql):
         char = sql[index]
@@ -55,9 +79,12 @@ def split_statements(sql: str, dialect: str | None = None) -> list[tuple[int, st
         if line_comment:
             index += 1
             continue
-        if block_comment:
-            if pair == "*/":
-                block_comment = False
+        if block_comment_depth:
+            if pair == "/*" and dialect == "postgresql":
+                block_comment_depth += 1
+                index += 2
+            elif pair == "*/":
+                block_comment_depth -= 1
                 index += 2
             else:
                 index += 1
@@ -75,24 +102,25 @@ def split_statements(sql: str, dialect: str | None = None) -> list[tuple[int, st
                     index += 2
                     continue
                 quote = None
-            elif char == "\\" and quote == "'":
+            elif char == "\\" and quote_uses_backslash(sql, quote_start, dialect, quote):
                 index += 2
                 continue
             index += 1
             continue
         if pair == "/*":
-            block_comment = True
+            block_comment_depth = 1
             index += 2
             continue
-        if pair == "--" or (char == "#" and dialect == "mysql"):
+        if starts_line_comment(sql, index, dialect):
             line_comment = True
             index += 2 if pair == "--" else 1
             continue
         if char in {"'", '"', "`"}:
             quote = char
+            quote_start = index
             index += 1
             continue
-        if char == "$":
+        if char == "$" and dialect == "postgresql":
             match = re.match(r"\$[A-Za-z_][A-Za-z0-9_]*\$|\$\$", sql[index:])
             if match:
                 dollar = match.group(0)
@@ -118,34 +146,42 @@ def mask_literals_and_comments(sql: str, dialect: str | None = None) -> str:
     index = 0
     while index < len(chars):
         if sql.startswith("/*", index):
-            end = sql.find("*/", index + 2)
-            end = len(sql) if end < 0 else end + 2
+            depth, end = 1, index + 2
+            while end < len(sql) and depth:
+                if sql.startswith("/*", end) and dialect == "postgresql":
+                    depth += 1; end += 2
+                elif sql.startswith("*/", end):
+                    depth -= 1; end += 2
+                else:
+                    end += 1
             for pos in range(index, end):
                 if chars[pos] != "\n": chars[pos] = " "
             index = end
             continue
-        if sql.startswith("--", index) or (chars[index] == "#" and dialect == "mysql"):
+        if starts_line_comment(sql, index, dialect):
             end = sql.find("\n", index)
             end = len(sql) if end < 0 else end
             for pos in range(index, end): chars[pos] = " "
             index = end
             continue
-        if chars[index] == "'":
+        if chars[index] in {"'", '"'}:
+            quote = chars[index]
+            quote_start = index
             end = index + 1
             while end < len(chars):
-                if chars[end] == "'":
-                    if end + 1 < len(chars) and chars[end + 1] == "'":
+                if chars[end] == quote:
+                    if end + 1 < len(chars) and chars[end + 1] == quote:
                         end += 2
                         continue
                     end += 1
                     break
-                if chars[end] == "\\": end += 1
+                if chars[end] == "\\" and quote_uses_backslash(sql, quote_start, dialect, quote): end += 1
                 end += 1
             for pos in range(index, min(end, len(chars))):
                 if chars[pos] != "\n": chars[pos] = " "
             index = end
             continue
-        if chars[index] == "$":
+        if chars[index] == "$" and dialect in {None, "postgresql"}:
             match = re.match(r"\$[A-Za-z_][A-Za-z0-9_]*\$|\$\$", sql[index:])
             if match:
                 tag = match.group(0); end = sql.find(tag, index + len(tag)); end = len(sql) if end < 0 else end + len(tag)
@@ -159,8 +195,16 @@ def mask_literals_and_comments(sql: str, dialect: str | None = None) -> str:
 
 def detect_dialect(sql: str) -> str | None:
     masked = mask_literals_and_comments(sql).lower()
-    mysql = bool(re.search(r"`|\bauto_increment\b|\bengine\s*=|\bdefault\s+charset\b|\bunsigned\b", masked))
-    postgres = bool(re.search(r"::[a-z]|\btimestamptz\b|\bjsonb\b|\bconcurrently\b|\b(?:smallserial|serial|bigserial)\b|\breturning\b", masked))
+    mysql = bool(re.search(
+        r"`|\bauto_increment\b|\bengine\s*=|\bdefault\s+charset\b|"
+        r"\b(?:tinyint|smallint|mediumint|int|integer|bigint|decimal|numeric|float|double)\b[^,)]*\bunsigned\b",
+        masked,
+    ))
+    postgres = bool(re.search(
+        r"::[a-z]|\bconcurrently\b|\breturning\b|"
+        r"(?:\(|,)\s*[a-z_][a-z0-9_$]*\s+(?:timestamptz|jsonb|uuid|smallserial|serial|bigserial)\b",
+        masked,
+    ))
     if mysql == postgres:
         return None
     return "mysql" if mysql else "postgresql"
@@ -273,6 +317,43 @@ def postgresql_serial_pk(normalized: str) -> bool:
     return bool(banned_columns & primary_columns)
 
 
+def primary_key_definitions(normalized: str) -> list[str]:
+    """Return column definitions participating in inline or table-level primary keys."""
+    columns: dict[str, str] = {}
+    primary_columns: set[str] = set()
+    for segment in table_segments(normalized):
+        table_pk = re.search(r"\bprimary\s+key\s*\(([^)]*)\)", segment)
+        if table_pk and re.match(r"^(?:constraint\s+\S+\s+)?primary\s+key\b", segment):
+            primary_columns.update(re.findall(r"[a-z_][a-z0-9_$]*", table_pk.group(1)))
+            continue
+        column = re.match(r'^(?:`([^`]+)`|"([^"]+)"|([a-z_][a-z0-9_$]*))\s+(.+)$', segment)
+        if not column:
+            continue
+        name = next(value for value in column.groups()[:3] if value).lower()
+        definition = column.group(4)
+        columns[name] = definition
+        if re.search(r"\bprimary\s+key\b", definition):
+            primary_columns.add(name)
+    return [columns[name] for name in primary_columns if name in columns]
+
+
+def cte_bodies(normalized: str) -> list[tuple[int, str]]:
+    """Extract WITH item bodies after AS, including nested PostgreSQL CTEs."""
+    bodies: list[tuple[int, str]] = []
+    for match in re.finditer(r"\bas\s*\(", normalized):
+        start = match.end()
+        depth, index = 1, start
+        while index < len(normalized) and depth:
+            if normalized[index] == "(":
+                depth += 1
+            elif normalized[index] == ")":
+                depth -= 1
+            index += 1
+        if depth == 0:
+            bodies.append((start, normalized[start:index - 1].strip()))
+    return bodies
+
+
 def inspect_statement(file: str, line: int, statement: str, dialect: str) -> list[Finding]:
     findings: list[Finding] = []
     masked = mask_literals_and_comments(statement, dialect)
@@ -280,10 +361,16 @@ def inspect_statement(file: str, line: int, statement: str, dialect: str) -> lis
     words = top_level_words(normalized)
     main = main_statement(words)
 
+    if dialect == "postgresql" and normalized.startswith("with "):
+        for offset, body in cte_bodies(normalized):
+            if re.match(r"^(?:with\b[\s\S]*?\b)?(?:insert|update|delete)\b", body):
+                body_line = line + normalized[:offset].count("\n")
+                findings.extend(inspect_statement(file, body_line, body, dialect))
+
     if re.search(r"\bselect\s+(?:(?:all|distinct)\s+)?(?:[a-z0-9_]+\.)?\*(?:\s|,|$)", normalized):
         add(findings, file, line, "G.SEL.12", dialect, "SELECT * requires a documented catalog exception", statement)
     if re.search(r"\b(?:cross|full(?:\s+outer)?)\s+join\b", normalized):
-        add(findings, file, line, "G.SEL.08", dialect, "CROSS JOIN and FULL JOIN are prohibited by the shared profile", statement)
+        add(findings, file, line, f"{'MYSQL' if dialect == 'mysql' else 'POSTGRESQL'}-SEL-008", dialect, "CROSS JOIN and FULL JOIN require dialect-specific remediation", statement)
 
     if main and main[1] in {"update", "delete"}:
         main_index, dml_kind, _, _ = main
@@ -303,9 +390,9 @@ def inspect_statement(file: str, line: int, statement: str, dialect: str) -> lis
         if dml_kind == "update":
             tail_names = [word for word, _, _ in tail_words]
             if any(tail_names[index:index + 2] == ["order", "by"] for index in range(len(tail_names) - 1)):
-                add(findings, file, line, "G.UPD.02", dialect, "Top-level UPDATE ORDER BY is prohibited", statement)
+                add(findings, file, line, f"{'MYSQL' if dialect == 'mysql' else 'POSTGRESQL'}-UPD-002", dialect, "Top-level UPDATE ORDER BY is prohibited", statement)
             if "limit" in tail_names:
-                add(findings, file, line, "G.UPD.03", dialect, "Top-level UPDATE LIMIT is prohibited; use a stable-key batch design", statement)
+                add(findings, file, line, f"{'MYSQL' if dialect == 'mysql' else 'POSTGRESQL'}-UPD-001", dialect, "Top-level UPDATE LIMIT is prohibited; use a stable-key batch design", statement)
 
     if re.search(r"\bforeign\s+key\b|\breferences\s+[a-z0-9_`\"]+\s*\(", normalized):
         add(findings, file, line, "G.TAB.04", dialect, "Foreign keys are prohibited", statement)
@@ -322,23 +409,29 @@ def inspect_statement(file: str, line: int, statement: str, dialect: str) -> lis
         if re.search(r"\bdrop\s+column\s+(?:if\s+exists\s+)?[a-z0-9_`\"]+", normalized):
             add(findings, file, line, "G.UPG.03", dialect, "Dropping columns is prohibited", statement)
         if re.search(r"\b(?:modify|change)\s+(?:column\s+)?|\balter\s+column\s+[a-z0-9_\"]+\s+(?:set\s+data\s+)?type\b", normalized):
-            add(findings, file, line, "G.UPG.05", dialect, "Direct column type modification requires a compatible expand-contract plan", statement)
+            add(findings, file, line, f"{'MYSQL' if dialect == 'mysql' else 'POSTGRESQL'}-UPG-005", dialect, "Direct column type modification requires a compatible expand-contract plan", statement)
         if re.search(r"\balter\s+column\s+[a-z0-9_\"]+\s+set\s+not\s+null\b", normalized):
-            add(findings, file, line, "G.UPG.08", dialect, "Changing an existing column to NOT NULL is prohibited", statement)
+            add(findings, file, line, f"{'MYSQL' if dialect == 'mysql' else 'POSTGRESQL'}-UPG-008", dialect, "Changing an existing column to NOT NULL is prohibited", statement)
+        if dialect == "mysql" and re.search(r"\b(?:modify|change)\s+(?:column\s+)?[a-z0-9_`]+\s+[^,;]+\bnot\s+null\b", normalized):
+            add(findings, file, line, "MYSQL-UPG-008", dialect, "Changing an existing column to NOT NULL is prohibited", statement)
         if re.search(r"\badd\s+(?:column\s+)?(?!constraint\b)[a-z0-9_`\"]+\s+[^,;]+\bnot\s+null\b", normalized):
-            add(findings, file, line, "G.UPG.07", dialect, "Adding a NOT NULL column directly is prohibited", statement)
+            add(findings, file, line, f"{'MYSQL' if dialect == 'mysql' else 'POSTGRESQL'}-UPG-007", dialect, "Adding a NOT NULL column directly is prohibited", statement)
     if main and main[1] == "insert":
         insert_sql = normalized[main[2]:]
         if not re.match(r"^insert\s+into\s+[a-z0-9_.`\"]+\s*\(", insert_sql):
             add(findings, file, line, "G.INS.01", dialect, "INSERT must list target columns", statement)
     if re.search(r"\bxa\s+(?:start|begin|end|prepare|commit|rollback)\b", normalized):
-        add(findings, file, line, "G.TXN.07", dialect, "XA transactions are prohibited", statement)
+        add(findings, file, line, "MYSQL-TXN-007" if dialect == "mysql" else "POSTGRESQL-TXN-007", dialect, "Distributed transactions require explicit approval", statement)
+    if dialect == "postgresql" and re.search(r"\b(?:prepare\s+transaction|commit\s+prepared|rollback\s+prepared)\b", normalized):
+        add(findings, file, line, "POSTGRESQL-TXN-007", dialect, "Prepared transactions require explicit approval", statement)
     if re.search(r"\bset\s+(?:(?:session|global)\s+)?transaction\s+isolation\s+level\b", normalized):
         add(findings, file, line, "G.TXN.01", dialect, "Explicit transaction isolation levels are prohibited", statement)
 
     if dialect == "mysql":
         if re.search(r"\bauto_increment\b", normalized):
             add(findings, file, line, "MYSQL-PK-001", dialect, "AUTO_INCREMENT primary keys are prohibited", statement)
+        if create_table and any(re.search(r"\b(?:char|varchar)\s*\(\s*3[26]\s*\)", definition) for definition in primary_key_definitions(normalized)):
+            add(findings, file, line, "MYSQL-PK-001", dialect, "Text UUID primary keys must use BINARY(16)", statement)
         engine = re.search(r"\bengine\s*=\s*([a-z0-9_]+)", normalized)
         if engine and engine.group(1) != "innodb":
             add(findings, file, line, "MYSQL-TAB-001", dialect, "MySQL tables must use InnoDB", statement)
@@ -350,6 +443,8 @@ def inspect_statement(file: str, line: int, statement: str, dialect: str) -> lis
             add(findings, file, line, "POSTGRESQL-TAB-001", dialect, "MySQL-only table syntax is invalid in PostgreSQL", statement)
         if create_table and postgresql_serial_pk(normalized):
             add(findings, file, line, "POSTGRESQL-PK-001", dialect, "Serial/identity distributed primary keys are prohibited", statement)
+        if create_table and any(re.search(r"\b(?:bytea\b|binary\s*\(\s*16\s*\)|(?:char|varchar)\s*\(\s*3[26]\s*\))", definition) for definition in primary_key_definitions(normalized)):
+            add(findings, file, line, "POSTGRESQL-PK-001", dialect, "Distributed UUID primary keys must use native uuid", statement)
     return findings
 
 

@@ -19,9 +19,17 @@ LEVEL_TERMS = {
 }
 
 STATIC_IDS = {
-    "G.DEL.01", "G.INS.01", "G.SEL.08", "G.SEL.12", "G.TAB.04", "G.TAB.16",
-    "G.TXN.01", "G.TXN.07", "G.UPD.01", "G.UPD.02", "G.UPD.03", "G.UPG.03",
-    "G.UPG.05", "G.UPG.07", "G.UPG.08", "G.UPG.10", "G.UPG.11",
+    "G.DEL.01", "G.INS.01", "G.SEL.12", "G.TAB.04", "G.TAB.16",
+    "G.TXN.01", "G.UPD.01", "G.UPG.03", "G.UPG.10", "G.UPG.11",
+}
+
+DIALECT_SPLIT_IDS = {
+    "G.DBS.01", "G.DBS.02", "G.DBS.05", "G.TAB.01", "G.TAB.05", "G.TAB.13",
+    "G.TAB.15", "G.TAB.18", "G.TAB.19", "G.IDX.06", "G.IDX.07", "G.IDX.11",
+    "G.NAM.01", "G.NAM.03", "G.SEL.01", "G.SEL.05", "G.SEL.08", "G.SEL.17",
+    "G.SEL.35", "G.DEL.02", "G.DEL.03", "G.UPD.02", "G.UPD.03", "G.UPD.05",
+    "G.UPD.06", "G.TXN.07", "G.TXN.08", "G.UPG.02", "G.UPG.04", "G.UPG.05",
+    "G.UPG.07", "G.UPG.08", "G.UPG.12", "G.UPG.13",
 }
 
 MANUAL_PREFIXES = {"DBS", "CLI", "SEC", "KOO"}
@@ -29,6 +37,7 @@ CONFIRM_PREFIXES = {"TAB", "IDX", "UPG"}
 CONFIRM_IDS = {"G.DEL.02", "G.UPG.09"}
 REFERENCE_IDS = {"G.FMT.08"}
 RECOMMENDATION_IDS = {"G.IDX.09", "G.IDX.10"}
+MANDATORY_IDS = {"G.DEL.01"}
 
 PORTABLE_OVERRIDES = {
     "G.DBS.01": "客户端与服务端必须统一使用目标数据库支持的 Unicode 编码；具体编码由方言规则给出。",
@@ -51,6 +60,8 @@ PORTABLE_OVERRIDES = {
     "G.KOO.06": "禁止删除表、字段及项目声明的受保护配置数据。",
     "G.KOO.07": "使用平台加密组件写入的数据必须验证能够按授权路径正确解密。",
     "G.KOO.09": "设计阶段完成表设计后，必须执行项目批准的数据模型规范检查。",
+    "G.DEL.01": "DELETE 语句必须带能够限定目标行的 WHERE 条件。是否命中主键或索引属于执行计划评审建议，不改变缺少 WHERE 时的 Block。",
+    "G.SEL.15": "统计行数使用 count(*)；只有需要忽略 NULL 时才使用 count(列名)。不得以性能理由强制用 count(1) 替代 count(*)。",
 }
 
 NAME_OVERRIDES = {
@@ -74,6 +85,7 @@ NAME_OVERRIDES = {
     "G.KOO.06": "禁止删除结构和受保护配置数据",
     "G.KOO.07": "加密数据必须验证授权解密路径",
     "G.KOO.09": "表设计必须执行批准的数据模型规范检查",
+    "G.SEL.15": "按空值语义选择 count(*) 或 count(列名)",
 }
 
 STATIC_EXAMPLES = {
@@ -130,7 +142,12 @@ def clean(value: str) -> str:
     value = re.sub(r"!\[[^]]*]\([^)]*\)", "", value)
     value = re.sub(r"\[([^]]+)]\([^)]*\)", r"\1", value)
     value = re.sub(r"<[^>]+>|&nbsp;", " ", value)
-    value = re.sub(r"[`*_\\]", "", value)
+    # Strip Markdown delimiters, not SQL operators. In particular, `*` is
+    # meaningful in SELECT * and COUNT(*) and must survive import.
+    value = re.sub(r"`([^`]*)`", r"\1", value)
+    value = re.sub(r"(?<!\*)\*\*([^*]+)\*\*(?!\*)", r"\1", value)
+    value = re.sub(r"(?<!_)__([^_]+)__(?!_)", r"\1", value)
+    value = re.sub(r"\\([\\`*_{}\[\]()#+.!-])", r"\1", value)
     value = re.sub(r"\s+", " ", value).strip(" #:-")
     return value
 
@@ -140,6 +157,8 @@ def level_for(clause_id: str, text: str) -> str:
         return "reference"
     if clause_id in RECOMMENDATION_IDS:
         return "recommendation"
+    if clause_id in MANDATORY_IDS:
+        return "mandatory"
     for level, terms in LEVEL_TERMS.items():
         if any(term in text for term in terms):
             return level
@@ -177,6 +196,8 @@ def parse_clauses(markdown: str) -> list[dict[str, object]]:
             if sum(map(len, prose)) >= 420:
                 break
         for clause_id in expand_id(match.group(2)):
+            if clause_id in DIALECT_SPLIT_IDS:
+                continue
             prefix = clause_id.split(".")[1]
             name = NAME_OVERRIDES.get(clause_id) or title or clause_id
             # Severity follows the complete source clause, not the portable display name.
