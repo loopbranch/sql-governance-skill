@@ -4,7 +4,9 @@ import importlib.util
 import json
 import subprocess
 import sys
+import tempfile
 import unittest
+from hashlib import sha256
 from pathlib import Path
 
 
@@ -17,6 +19,53 @@ SPEC.loader.exec_module(sql_guard)
 
 
 class SqlGuardTest(unittest.TestCase):
+    def test_verified_rollback_only_covers_the_exact_inverse_operation(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            upgrade = "sql/upgrade/v0101/ddl.sql"
+            rollback = "sql/rollback/v0101/ddl.sql"
+            drop = "ALTER TABLE t DROP COLUMN IF EXISTS feature;"
+            files = {
+                upgrade: "-- upgrade\nALTER TABLE t ADD COLUMN feature text;\n",
+                rollback: f"-- verified inverse\n{drop}\nALTER TABLE t DROP COLUMN old_column;\n",
+            }
+            members = []
+            for direction, path in (("upgrade", upgrade), ("rollback", rollback)):
+                (root / path).parent.mkdir(parents=True)
+                (root / path).write_text(files[path], encoding="utf-8")
+                members.append({
+                    "path": path, "direction": direction, "kind": "ddl", "execution": "sql",
+                    "sha256": sha256(files[path].encode()).hexdigest(),
+                })
+            batch = {
+                "batch": "v0101", "dialect": "postgresql", "database_version": "16.15", "files": members,
+                "schema_equal": True, "data_equal": True, "syntax_verified": True,
+                "operations": [{"path": rollback, "line": 2, "sql": drop}],
+            }
+            receipt = root / "receipt.json"
+            command = [sys.executable, str(MODULE_PATH), "--dialect", "postgresql", "--format", "json"]
+            baseline = subprocess.run(command + [upgrade, rollback], cwd=root, capture_output=True, text=True, check=False)
+            self.assertEqual(1, baseline.returncode)
+            self.assertEqual(2, len(json.loads(baseline.stdout)["findings"]))
+
+            command += ["--migration-evidence", str(receipt), upgrade, rollback]
+            for updates, expected_remaining in (({}, 1), ({"data_equal": False}, 2),
+                                                 ({"operations": [{"path": upgrade, "line": 2, "sql": drop}]}, 2)):
+                with self.subTest(updates=updates):
+                    receipt.write_text(json.dumps({"version": 1, "batches": [batch | updates]}), encoding="utf-8")
+                    result = subprocess.run(command, cwd=root, capture_output=True, text=True, check=False)
+                    self.assertEqual(1, result.returncode)
+                    report = json.loads(result.stdout)
+                    self.assertEqual(expected_remaining, len(report["findings"]))
+                    self.assertEqual(not updates, bool(report["normal_rollbacks"]))
+                    self.assertEqual(bool(updates), bool(report["migration_evidence_errors"]))
+
+            receipt.write_text(json.dumps({"version": 1, "batches": [batch]}), encoding="utf-8")
+            (root / upgrade).write_text(files[upgrade] + "-- changed\n", encoding="utf-8")
+            stale = subprocess.run(command, cwd=root, capture_output=True, text=True, check=False)
+            self.assertEqual(1, stale.returncode)
+            self.assertIn("different digest", json.loads(stale.stdout)["migration_evidence_errors"][0])
+
     def rule_ids(self, sql: str, dialect: str) -> set[str]:
         _, findings = sql_guard.inspect("example.sql", sql, dialect)
         return {finding.rule_id for finding in findings}
@@ -110,6 +159,26 @@ class SqlGuardTest(unittest.TestCase):
             (item.rule_id, item.gate) for item in findings
         ])
 
+    def test_postgresql_inline_foreign_keys_can_omit_referenced_columns(self) -> None:
+        for sql in (
+            "create table if not exists child (id int primary key, parent_id int references public.parent);",
+            'alter table public.child add column parent_id int references "other schema"."parent table";',
+            "alter table child add column parent_id int references public.parent (id);",
+        ):
+            with self.subTest(sql=sql):
+                _, findings = sql_guard.inspect("table.sql", sql, "postgresql")
+                self.assertEqual([("POSTGRESQL-GTAB-004", "block")], [
+                    (item.rule_id, item.gate) for item in findings
+                ])
+
+        for sql in (
+            '''create table if not exists child (id int primary key, note text default 'references public.parent');''',
+            'alter table child add column value int constraint "references parent" check (value is not null);',
+            'alter table child drop constraint "references parent";',
+        ):
+            with self.subTest(sql=sql):
+                self.assertNotIn("POSTGRESQL-GTAB-004", self.rule_ids(sql, "postgresql"))
+
     def test_auto_detects_table_syntax_by_position(self) -> None:
         pg = "create table if not exists t_user (id uuid primary key, engine text check (engine = 'x'));"
         mysql = "create table if not exists t_user (id int primary key) engine innodb;"
@@ -162,8 +231,53 @@ class SqlGuardTest(unittest.TestCase):
         self.assertIn(self.split_id("mysql", "G.UPG.03"), self.rule_ids("alter table t_user drop column name;", "mysql"))
 
     def test_check_constraint_is_not_new_not_null_column(self) -> None:
-        sql = "alter table t_user add constraint ck_name check (name is not null);"
-        self.assertNotIn("POSTGRESQL-UPG-007", self.rule_ids(sql, "postgresql"))
+        for action in (
+            "add constraint ck_name check (name is not null)",
+            "add column name text check (name is not null)",
+            'add column "full name" text check ("full name" is not null)',
+            "add column name text default 'not null'",
+        ):
+            with self.subTest(action=action):
+                self.assertNotIn(
+                    "POSTGRESQL-UPG-007",
+                    self.rule_ids(f"alter table t_user {action};", "postgresql"),
+                )
+
+    def test_postgresql_add_column_with_declared_not_null_is_blocked(self) -> None:
+        for action in (
+            'add column "full name" varchar(64) not null',
+            "add column code int, add column name varchar(64) not null",
+            "add column name text not null default null",
+            "add column name text not null default (null)",
+            "add column token double precision not null default random()",
+            "add column token text default ('prefix' || random()::text) not null",
+            "add column flag boolean not null default 1 not in (random())",
+            "add column label text not null default 'prefix' collate \"C\" || random()::text",
+            "add column code int not null default 0, add column name text not null",
+            "add column name text not null default current_setting('app.name', true)",
+        ):
+            with self.subTest(action=action):
+                _, findings = sql_guard.inspect("table.sql", f"alter table t_user {action};", "postgresql")
+                self.assertEqual([("POSTGRESQL-UPG-007", "block")], [
+                    (item.rule_id, item.gate) for item in findings
+                ])
+
+    def test_postgresql_nonnull_nonvolatile_defaults_pass_not_null_check(self) -> None:
+        for action in (
+            "add column flag boolean not null default false",
+            "add column flag boolean default (false) not null",
+            "add column flag boolean default false constraint flag_required not null",
+            "add column code int not null default 0 check (code >= 0)",
+            "add column name text not null default /* empty string */ ''",
+            "add column name text default E'a\\'b, not null' not null",
+            "add column name text default $$a,not null;$$ not null",
+            "add column received_at timestamp not null default current_timestamp(3)",
+        ):
+            with self.subTest(action=action):
+                self.assertNotIn(
+                    "POSTGRESQL-UPG-007",
+                    self.rule_ids(f"alter table t_user {action};", "postgresql"),
+                )
 
     def test_postgresql_alter_column_variants_are_detected(self) -> None:
         sql = "alter table t_user alter column name type varchar(64); alter table t_user alter column name set not null;"
@@ -232,6 +346,22 @@ class SqlGuardTest(unittest.TestCase):
     def test_cte_insert_without_columns_is_detected(self) -> None:
         sql = "with source as (select 1 as id) insert into t_user values (1);"
         self.assertIn(self.split_id("postgresql", "G.INS.01"), self.rule_ids(sql, "postgresql"))
+
+    def test_insert_recognizes_dialect_specific_target_column_lists(self) -> None:
+        for dialect, sql, expected_block in (
+            ("mysql", "insert ignore into `system_configs` (`config_key`) values ('example');", False),
+            ("mysql", "insert ignore into system_configs values ('example');", True),
+            ("mysql", "insert low_priority ignore `app` . `settings` partition (p0) (id) values (1);", False),
+            ("mysql", "insert into settings partition (p0) values (1);", True),
+            ("mysql", "insert into settings () values ();", True),
+            ("postgresql", 'insert into "app"."settings" as s ("key") values (1) on conflict do nothing;', False),
+            ("postgresql", 'insert into "app"."settings" as s values (1) on conflict do nothing;', True),
+            ("postgresql", 'with s as (select 1) insert into "app" . "settings" ("key") select 1 from s;', False),
+        ):
+            with self.subTest(dialect=dialect, sql=sql):
+                _, findings = sql_guard.inspect("insert.sql", sql, dialect)
+                expected = [(self.split_id(dialect, "G.INS.01"), "block")] if expected_block else []
+                self.assertEqual(expected, [(item.rule_id, item.gate) for item in findings])
 
     def test_all_mysql_charset_declarations_are_checked(self) -> None:
         sql = "create table if not exists t_user (id binary(16) primary key, name varchar(20) character set latin1) engine=InnoDB default charset=utf8mb4;"

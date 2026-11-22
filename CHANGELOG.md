@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- 支持按批次读取可信迁移往返回执，对已经验证且定位明确的回滚逆操作单独判定。
+
 ### Fixed
 
 - 支持 PostgreSQL UTF-8 裸标识符中的组合字符，保留主键列名的非 ASCII 大小写和 Unicode 写法差异。
