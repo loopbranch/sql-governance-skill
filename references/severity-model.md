@@ -23,5 +23,6 @@
 - `dialect-required`：无法确认 MySQL 或 PostgreSQL；只可报告公共规则，方言合规结论按 Block 处理。
 - `not-applicable`：有证据表明规则不适用。
 - `exception`：仅当规则允许例外，且批准范围、理由、批准人/角色、有效期和链接齐全。
+- `normal-rollback`：可信测试证明同批升级和回滚后结构、数据恢复，且逆操作精确匹配已执行脚本。按适用方言完成语法验证后，该操作不计入破坏性变更 Block。
 
 报告中的总门禁结论按最严重项聚合：Block（含 confirmation-required、dialect-required） > Warn > Info > Pass。

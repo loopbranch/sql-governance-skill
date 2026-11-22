@@ -662,7 +662,7 @@
       "dialects": [
         "postgresql"
       ],
-      "condition": "PostgreSQL 16 通过 ALTER TABLE ... ALTER COLUMN ... TYPE [USING] 改类型，可能重写表并持锁；使用扩展-回填-切换-收缩方案。",
+      "condition": "PostgreSQL 16 通过 ALTER TABLE ... ALTER COLUMN ... TYPE [USING] 改类型，可能重写表并持锁；使用扩展-回填-切换-收缩方案。 同批回滚仅撤销升级新增对象或恢复升级前定义，且有证据证明结构与持久数据往返一致时，按正常逆操作检查方言语法。向前变更与无法证明可逆的回滚继续按本规则判定。",
       "check": {
         "kind": "static",
         "detector": "由 sql_guard.py 按方言语法解析并阻断。"
@@ -714,7 +714,7 @@
       "dialects": [
         "postgresql"
       ],
-      "condition": "PostgreSQL 16 使用 ALTER COLUMN ... SET NOT NULL 并检查现有数据；先通过可验证约束与回填方案降低锁风险。",
+      "condition": "PostgreSQL 16 使用 ALTER COLUMN ... SET NOT NULL 并检查现有数据；先通过可验证约束与回填方案降低锁风险。 同批回滚仅撤销升级新增对象或恢复升级前定义，且有证据证明结构与持久数据往返一致时，按正常逆操作检查方言语法。向前变更与无法证明可逆的回滚继续按本规则判定。",
       "check": {
         "kind": "static",
         "detector": "由 sql_guard.py 按方言语法解析并阻断。"
@@ -740,7 +740,7 @@
       "dialects": [
         "postgresql"
       ],
-      "condition": "PostgreSQL 16 项目治理要求：避免使用外键（禁止） 判定必须使用 PostgreSQL 16 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 MySQL 结论。",
+      "condition": "PostgreSQL 16 项目治理要求：避免使用外键（禁止） 判定必须使用 PostgreSQL 16 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 MySQL 结论。 同批回滚仅撤销升级新增对象或恢复升级前定义，且有证据证明结构与持久数据往返一致时，按正常逆操作检查方言语法。向前变更与无法证明可逆的回滚继续按本规则判定。",
       "check": {
         "kind": "static",
         "detector": "由 sql_guard.py 使用 PostgreSQL 16 lexer/grammar 高置信判定。"
@@ -948,7 +948,7 @@
       "dialects": [
         "postgresql"
       ],
-      "condition": "PostgreSQL 16 项目治理要求：禁止drop表字段 判定必须使用 PostgreSQL 16 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 MySQL 结论。",
+      "condition": "PostgreSQL 16 项目治理要求：禁止drop表字段 判定必须使用 PostgreSQL 16 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 MySQL 结论。 同批回滚仅撤销升级新增对象或恢复升级前定义，且有证据证明结构与持久数据往返一致时，按正常逆操作检查方言语法。向前变更与无法证明可逆的回滚继续按本规则判定。",
       "check": {
         "kind": "static",
         "detector": "识别 ALTER TABLE 顶层子命令中的 DROP [COLUMN]；排除索引、键与约束等非列操作。"

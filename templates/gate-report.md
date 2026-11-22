@@ -18,6 +18,7 @@
 - Warn：`<n>`
 - Info：`<n>`
 - Confirmation required：`<n>`
+- 已验证正常逆操作：`<n>`
 
 ## 发现项
 
@@ -29,7 +30,7 @@
 - 判定：`<静态命中 / 人工证据缺失 / 例外无效>`
 - 风险：`<影响>`
 - 整改：`<可执行的最小修复>`
-- 状态：`open | fixed | confirmation-required | exception`
+- 状态：`open | fixed | confirmation-required | exception | normal-rollback`
 - 证据：`<diff/EXPLAIN/批准记录链接>`
 
 ## 已确认但仍需独立检验的变更

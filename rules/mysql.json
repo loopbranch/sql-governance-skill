@@ -661,7 +661,7 @@
       "dialects": [
         "mysql"
       ],
-      "condition": "MySQL 5.7 通过 ALTER TABLE ... MODIFY/CHANGE 改类型，可能重建表或转换数据；使用扩展-回填-切换-收缩方案。",
+      "condition": "MySQL 5.7 通过 ALTER TABLE ... MODIFY/CHANGE 改类型，可能重建表或转换数据；使用扩展-回填-切换-收缩方案。 同批回滚仅撤销升级新增对象或恢复升级前定义，且有证据证明结构与持久数据往返一致时，按正常逆操作检查方言语法。向前变更与无法证明可逆的回滚继续按本规则判定。",
       "check": {
         "kind": "static",
         "detector": "由 sql_guard.py 按方言语法解析并阻断。"
@@ -713,7 +713,7 @@
       "dialects": [
         "mysql"
       ],
-      "condition": "MySQL 5.7 使用 MODIFY/CHANGE 重述完整列定义来收紧 NULL 属性，存在属性丢失与锁风险；先回填和验证。",
+      "condition": "MySQL 5.7 使用 MODIFY/CHANGE 重述完整列定义来收紧 NULL 属性，存在属性丢失与锁风险；先回填和验证。 同批回滚仅撤销升级新增对象或恢复升级前定义，且有证据证明结构与持久数据往返一致时，按正常逆操作检查方言语法。向前变更与无法证明可逆的回滚继续按本规则判定。",
       "check": {
         "kind": "static",
         "detector": "由 sql_guard.py 按方言语法解析并阻断。"
@@ -739,7 +739,7 @@
       "dialects": [
         "mysql"
       ],
-      "condition": "MySQL 5.7 项目治理要求：避免使用外键（禁止） 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "condition": "MySQL 5.7 项目治理要求：避免使用外键（禁止） 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。 同批回滚仅撤销升级新增对象或恢复升级前定义，且有证据证明结构与持久数据往返一致时，按正常逆操作检查方言语法。向前变更与无法证明可逆的回滚继续按本规则判定。",
       "check": {
         "kind": "static",
         "detector": "由 sql_guard.py 使用 MySQL 5.7 lexer/grammar 高置信判定。"
@@ -947,7 +947,7 @@
       "dialects": [
         "mysql"
       ],
-      "condition": "MySQL 5.7 项目治理要求：禁止drop表字段 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。",
+      "condition": "MySQL 5.7 项目治理要求：禁止drop表字段 判定必须使用 MySQL 5.7 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 PostgreSQL 结论。 同批回滚仅撤销升级新增对象或恢复升级前定义，且有证据证明结构与持久数据往返一致时，按正常逆操作检查方言语法。向前变更与无法证明可逆的回滚继续按本规则判定。",
       "check": {
         "kind": "static",
         "detector": "识别 ALTER TABLE 顶层子命令中的 DROP [COLUMN]；排除索引、键与约束等非列操作。"
