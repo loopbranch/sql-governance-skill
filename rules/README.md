@@ -12,7 +12,7 @@
 每条规则包含：
 
 - `id`：稳定 ID，发布后不得复用；
-- `source`：附件原始条款编号；
+- `source`：附件原始条款编号或 `project:` 项目规则来源；
 - `level`：`prohibition | mandatory | recommendation | reference`；
 - `gate`：`block | warn | info`；
 - `scope`：适用对象；
@@ -29,6 +29,8 @@
 
 字符集、引擎及分布式事务的候选命中需要结合部署配置和审批记录。可能承载 UUID 的主键列依据数据模型、生成方式或写入代码核实；业务编码可以使用字符类型。`POSTGRESQL-DDL-001` 的并发建索引要求需要结合生产环境、表规模和迁移事务配置评审。
 
+归档 SQL 的 `MYSQL-DBS-003` 和 `POSTGRESQL-DBS-003` 是人工 Block 门禁，按 `SKILL.md` 收集脚本及双环境重跑证据。单独执行 `sql_guard.py` 不会判定这两条规则。
+
 ## 维护规则
 
 1. 规则变更通过 PR，不直接改消费方 submodule 内文件。
@@ -40,5 +42,7 @@
    - MINOR：向后兼容地新增规则、检测器或模板能力；
    - PATCH：澄清、误报修复、示例或文档修订，不改变门禁语义。
 6. 合并后创建签名 tag（如 `v1.1.0`）和 GitHub Release。
+
+`source` 可追溯附件条款或项目新增规则。以 `project:` 标记的项目规则单独计入规则目录，附件覆盖仍为 154 条。
 
 `source` 仅用于追溯，不代表公共仓库可以转载受限原文。发布前应由规范所有者确认授权和脱敏范围。

@@ -7,7 +7,7 @@
 | 源条款 | 结论 | MySQL 规则 | PostgreSQL 规则 | 保留/拆分依据 |
 |---|---|---|---|---|
 | `G.DBS.01` | 拆分 | `MYSQL-ENC-001` | `POSTGRESQL-ENC-001` | 底层边界涉及 schema/encoding/privileges；按双方言官方规范分别判定。 |
-| `G.DBS.02` | 拆分 | `MYSQL-DBS-002` | `POSTGRESQL-DBS-002` | 底层边界涉及 schema/encoding/privileges；按双方言官方规范分别判定。 |
+| `G.DBS.02` | 拆分 | `MYSQL-DBS-002` | `POSTGRESQL-DBS-002` | 部署按方言配置独立数据库或 schema、账号权限及对象解析上下文。归档 SQL 适用对应的 DBS-003。 |
 | `G.DBS.03` | 保留 common | `经 common 加载：G.DBS.03` | `经 common 加载：G.DBS.03` | 两端使用相同的治理条件和整改原则。 |
 | `G.DBS.04` | 保留 common | `经 common 加载：G.DBS.04` | `经 common 加载：G.DBS.04` | 纯组织、文本格式或发布归档约束；判定不读取数据库方言语义。 |
 | `G.DBS.05` | 拆分 | `MYSQL-ENC-001` | `POSTGRESQL-ENC-001` | 底层边界涉及 schema/encoding/privileges；按双方言官方规范分别判定。 |
