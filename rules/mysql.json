@@ -244,16 +244,46 @@
       "dialects": [
         "mysql"
       ],
-      "condition": "MySQL 5.7 中 SCHEMA 是 DATABASE 的同义词；每个服务使用独立 database，并以账号权限控制跨库访问。",
+      "condition": "每个服务使用独立数据库。由部署创建并隔离数据库、配置执行账号及权限，由连接配置选择目标数据库和登录账号。MySQL 中 SCHEMA 与 DATABASE 同义。归档 SQL 按 MYSQL-DBS-003 检查。",
       "check": {
-        "kind": "hybrid",
-        "detector": "按方言语法静态筛查，并结合版本、schema 或执行上下文确认。"
+        "kind": "manual",
+        "detector": "核对部署或连接配置与权限范围，确认服务隔离及目标对象的解析上下文。"
       },
       "examples": {
-        "positive": "create database order_service",
-        "negative": "订单与结算服务共享同一数据库账号和表，任何服务均可修改另一服务的数据"
+        "positive": "部署为订单服务配置独立库和受限账号，连接选定该库后，归档 SQL 执行 SELECT id FROM t_order WHERE id = 1。",
+        "negative": "订单与结算服务共用同一账号和表，任一服务均可修改另一服务的数据。"
       },
-      "remediation": "按 MySQL 服务边界使用独立数据库 整改；规范依据见 references/dialect-spec-sources.md。",
+      "remediation": "在部署或连接层落实服务隔离、目标对象解析与最小权限。",
+      "confirmation_required": false
+    },
+    {
+      "id": "MYSQL-DBS-003",
+      "source": [
+        "project:archived-sql-portability"
+      ],
+      "name": "归档 SQL 必须跨环境原样重复执行",
+      "level": "mandatory",
+      "gate": "block",
+      "scope": [
+        "dbs",
+        "ddl",
+        "dml",
+        "migration",
+        "rollback"
+      ],
+      "dialects": [
+        "mysql"
+      ],
+      "condition": "初始化、升级、回滚、数据订正及其他归档业务脚本必须是目标方言可直接执行的纯 SQL。脚本中禁止出现目标数据库、账号、schema 或 search_path 配置，包括具体值、占位符、连接命令、环境限定的对象引用及动态 SQL 中的环境绑定。只使用当前连接上下文中的非限定业务对象名。归档脚本禁止 USE、数据库或 schema 管理、库名限定的业务对象、账号管理、显式 DEFINER 以及面向账号或角色的授权操作。在满足预期前置状态、数据库版本与执行权限的目标环境中，同一份文件须原样连续执行至少两次并成功。第二次执行后的结构和持久数据须符合首次执行后的预期，不得重复插入、累加或覆盖已有业务数据。已有对象必须核对定义，单用 IF NOT EXISTS 跳过同名对象不足以证明可重跑。",
+      "check": {
+        "kind": "manual",
+        "detector": "审查完整归档脚本及部署配置，覆盖注释、转储头部、客户端指令、模板变量和动态 SQL。在两个使用不同库名和账号的兼容 MySQL 环境连续执行同一文件两次，记录执行结果并比对两次执行后的预期结构与数据。升级与回滚分别从各自的前置状态验证。"
+      },
+      "examples": {
+        "positive": "app_setting 的 id 为主键，且不存在其他唯一键或更新触发器。初始化默认值时保留已存在的记录：INSERT INTO app_setting (id, setting_value) VALUES (1, 'enabled') ON DUPLICATE KEY UPDATE id = id;",
+        "negative": "USE order_service; CREATE VIEW order_service.active_order AS SELECT id FROM order_service.t_order;"
+      },
+      "remediation": "移除脚本内的环境信息和配置操作，由部署或连接选择运行上下文。使用稳定键和明确的状态条件实现重复执行，再提供隔离环境证据。",
       "confirmation_required": false
     },
     {

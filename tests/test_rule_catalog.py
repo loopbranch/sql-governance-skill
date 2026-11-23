@@ -77,8 +77,14 @@ class RuleCatalogTest(unittest.TestCase):
             for domain, count in validate_rules.EXPECTED_SOURCE_DOMAINS.items()
             for number in range(1, count + 1)
         }
-        mysql_sources = {source for rule in self.mysql_rules.values() for source in rule["source"]}
-        postgresql_sources = {source for rule in self.postgresql_rules.values() for source in rule["source"]}
+        mysql_sources = {
+            source for rule in self.mysql_rules.values() for source in rule["source"]
+            if not source.startswith("project:")
+        }
+        postgresql_sources = {
+            source for rule in self.postgresql_rules.values() for source in rule["source"]
+            if not source.startswith("project:")
+        }
         expected_split = expected_sources - set(self.rules)
         self.assertEqual(expected_split, mysql_sources)
         self.assertEqual(expected_split, postgresql_sources)
