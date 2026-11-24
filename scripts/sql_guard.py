@@ -43,7 +43,7 @@ DIALECT_GUARD_RULES = {
         "POSTGRESQL-GDEL-001", "POSTGRESQL-GINS-001", "POSTGRESQL-GSEL-012",
         "POSTGRESQL-GTAB-004", "POSTGRESQL-GTAB-016", "POSTGRESQL-GTXN-001",
         "POSTGRESQL-GUPD-001", "POSTGRESQL-GUPG-003", "POSTGRESQL-GUPG-010",
-        "POSTGRESQL-GUPG-011",
+        "POSTGRESQL-GUPG-011", "POSTGRESQL-DBS-003",
     },
 }
 
@@ -157,6 +157,8 @@ def split_statements(sql: str, dialect: str | None = None, *, mysql_no_backslash
 def mask_literals_and_comments(
     sql: str, dialect: str | None = None, *, mysql_no_backslash_escapes: bool = False,
     preserve_identifiers: bool = False, mark_strings: bool = False,
+    dollar_bodies: list[str] | None = None,
+    dollar_ranges: list[tuple[int, int]] | None = None,
 ) -> str:
     """Replace literal/comment contents with spaces while preserving layout and identifiers."""
     chars = list(sql)
@@ -211,6 +213,10 @@ def mask_literals_and_comments(
                 tag = match.group(0)
                 closing = sql.find(tag, index + len(tag))
                 end = len(sql) if closing < 0 else closing + len(tag)
+                if dollar_ranges is not None and closing >= 0:
+                    dollar_ranges.append((index + len(tag), closing))
+                if dollar_bodies is not None and closing >= 0:
+                    dollar_bodies.append(sql[index + len(tag):closing])
                 for pos in range(index, end):
                     if chars[pos] != "\n": chars[pos] = " "
                 if mark_strings and closing >= 0:
@@ -268,8 +274,8 @@ UNQUOTED_IDENTIFIER = r"[a-zA-Z_\u0080-\U0010ffff][a-zA-Z0-9_$\u0080-\U0010ffff]
 ASCII_LOWERCASE = str.maketrans("ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz")
 
 
-def top_level_words(sql: str) -> list[tuple[str, int, int]]:
-    """Return lowercase word tokens outside parentheses, with source offsets."""
+def top_level_words(sql: str, *, all_depths: bool = False) -> list[tuple[str, int, int]]:
+    """Return lowercase word tokens with source offsets, normally outside parentheses."""
     words: list[tuple[str, int, int]] = []
     depth, index = 0, 0
     while index < len(sql):
@@ -297,7 +303,7 @@ def top_level_words(sql: str) -> list[tuple[str, int, int]]:
         match = re.match(UNQUOTED_IDENTIFIER, sql[index:])
         if match:
             end = index + len(match.group(0))
-            if depth == 0:
+            if depth == 0 or all_depths:
                 words.append((match.group(0).lower(), index, end))
             index = end
             continue
@@ -485,7 +491,7 @@ def postgresql_has_nonnull_stable_default(definition: str) -> bool:
         while value.startswith("(") and value.endswith(")"):
             value = value[1:-1].strip()
         return re.fullmatch(
-            r"(?:e?\?|[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?|true|false|current_date"
+            r"(?:e?\?(?:\s*::\s*(?:pg_catalog\s*\.\s*)?jsonb)?|[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?|true|false|current_date"
             r"|(?:current_time|current_timestamp|localtime|localtimestamp)(?:\s*\(\s*\d+\s*\))?)",
             value, re.I,
         ) is not None
@@ -547,8 +553,66 @@ def cte_bodies(masked: str) -> list[tuple[int, int]]:
     return bodies
 
 
+def postgresql_portability_problem(statement: str, *, routine_body: bool = False) -> str | None:
+    """Screen direct SQL; deployment evidence and routine purpose still require review."""
+    bodies: list[str] = []
+    code = mask_literals_and_comments(statement, "postgresql", preserve_identifiers=True, dollar_bodies=bodies)
+    normalized = re.sub(r"\s+", " ", code).strip().lower()
+    if re.match(r"^(?:do|call)\b", normalized):
+        return "Anonymous DO and CALL migration wrappers are prohibited; use direct SQL"
+    if re.match(r"^(?:create|alter|drop)\s+(?:database|schema|role|user|group|tablespace)\b", normalized):
+        return "Deployment objects must be configured outside archived SQL"
+    if re.search(r"\bowner\s+to\b", normalized) or re.match(r"^(?:grant|revoke)\b", normalized):
+        return "Role ownership and permissions belong to deployment configuration"
+    if re.search(r"(?:^|;|\bbegin|\bthen|\belse)\s*(?:set\s+(?:(?:local|session)\s+)?(?:search_path|schema|role|session\s+authorization)\b|reset\s+(?:search_path|role|session\s+authorization|all)\b)", normalized):
+        return "Schema/search_path and identity configuration is prohibited in archived SQL"
+    for call in re.finditer(r"\b(?:set_config|set_path)\s*\(", code, re.I):
+        if call.group(0).lower().startswith("set_path") or re.match(r"\s*'(?:search_path|schema)'", statement[call.end():], re.I):
+            return "Schema/search_path configuration is prohibited in archived SQL"
+    if routine_body and re.search(r"(?:^|;|\bbegin|\bthen|\belse|\bloop)\s*(?:create|alter|drop|truncate|comment)\b", normalized):
+        return "Migration DDL cannot be hidden in a routine"
+    if routine_body and re.search(r"\bexecute\b(?!\s+(?:function|procedure)\b)", normalized):
+        return "Dynamic migration SQL cannot be hidden in a routine"
+    if routine_body and re.search(r"(?::=|\bdefault)\s*(?:pg_catalog\s*\.\s*)?(?:current_schema|current_schemas|current_database|current_user|session_user)\b", normalized):
+        return "A routine must not bind a target environment variable"
+
+    # Only SQL object positions are checked; alias.column references and COMMENT
+    # ON COLUMN table.column are not schema-qualified business objects.
+    identifier = rf'(?:"(?:""|[^"])+"|{UNQUOTED_IDENTIFIER})'
+    qualified = re.compile(rf'\s*(?:(?:if\s+(?:not\s+)?exists|only|concurrently)\s+)*(?P<schema>{identifier})\s*\.\s*{identifier}', re.I)
+    object_words = {"table", "view", "sequence", "index", "function", "procedure", "references", "from", "join", "into", "update", "truncate"}
+    object_positions = top_level_words(code) + [token for token in top_level_words(code, all_depths=True) if token[0] == "references"]
+    for word, start, end in object_positions:
+        if word not in object_words:
+            continue
+        # IS [NOT] DISTINCT FROM compares expressions; FROM is not a relation
+        # introducer here, regardless of the following alias or trigger record.
+        if word == "from" and re.search(r"\bis\s+(?:not\s+)?distinct\s+$", code[:start], re.I):
+            continue
+        match = qualified.match(code, end)
+        if match and column_key(match.group("schema"), "postgresql") not in {"pg_catalog", "information_schema"}:
+            return "Business objects must use unqualified names"
+    if re.match(r"^create\s+(?:or\s+replace\s+)?(?:unique\s+)?(?:index|trigger)\b", normalized):
+        for match in re.finditer(r"\bon\b", code, re.I):
+            target = qualified.match(code, match.end())
+            if target and column_key(target.group("schema"), "postgresql") not in {"pg_catalog", "information_schema"}:
+                return "Business objects must use unqualified names"
+    if re.match(r"^(?:create\s+(?:or\s+replace\s+)?|alter\s+)(?:function|procedure)\b", normalized):
+        if re.search(r"\b(?:set|reset)\s+search_path\b", normalized):
+            return "Routine search_path configuration is prohibited in archived SQL"
+        for body in bodies:
+            problem = postgresql_portability_problem(body, routine_body=True)
+            if problem:
+                return problem
+    return None
+
+
 def inspect_statement(file: str, line: int, statement: str, dialect: str, *, mysql_no_backslash_escapes: bool = False) -> list[Finding]:
     findings: list[Finding] = []
+    if dialect == "postgresql":
+        problem = postgresql_portability_problem(statement)
+        if problem:
+            add(findings, file, line, "POSTGRESQL-DBS-003", dialect, problem, statement)
     masked = mask_literals_and_comments(statement, dialect, mysql_no_backslash_escapes=mysql_no_backslash_escapes)
     normalized = re.sub(r"\s+", " ", masked).strip().lower()
     words = top_level_words(normalized)
@@ -783,7 +847,7 @@ def main() -> int:
         for item in findings:
             print(f"{item.file}:{item.line}: {item.gate.upper()} {item.rule_id} [{item.dialect}] {item.message}\n  {item.snippet}")
         for item in operations:
-            print(f"{item['file']}:{item['line']}: PASS normal-rollback {item['rule_id']} ({item['batch']})")
+            print(f"{item['file']}:{item['line']}: PASS {item['state']} {item['rule_id']} ({item['batch']})")
     else:
         print(f"PASS: no findings ({', '.join(sorted(set(dialects.values())))})")
     return int(failed)

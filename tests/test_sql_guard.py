@@ -19,6 +19,79 @@ SPEC.loader.exec_module(sql_guard)
 
 
 class SqlGuardTest(unittest.TestCase):
+    def test_postgresql_archives_reject_procedural_migration_wrappers(self) -> None:
+        for sql in (
+            "DO $migration$ BEGIN ALTER TABLE t_order ADD COLUMN title text; END $migration$;",
+            "DO LANGUAGE plpgsql $$ DECLARE target_schema name := pg_catalog.current_schema(); BEGIN NULL; END $$;",
+            "DO $$ BEGIN EXECUTE 'CREATE TABLE t_order (id text)'; END $$;",
+            "CREATE FUNCTION migrate() RETURNS void AS $$ BEGIN ALTER TABLE t_order ADD COLUMN x text; END $$ LANGUAGE plpgsql;",
+        ):
+            with self.subTest(sql=sql):
+                self.assertIn("POSTGRESQL-DBS-003", self.rule_ids(sql, "postgresql"))
+
+    def test_postgresql_jsonb_literal_default_is_nonnull(self) -> None:
+        sql = "ALTER TABLE production_wake ADD COLUMN batch_targets jsonb NOT NULL DEFAULT '[]'::jsonb;"
+        self.assertNotIn("POSTGRESQL-UPG-007", self.rule_ids(sql, "postgresql"))
+        for unsafe in (
+            'ALTER TABLE t_order ADD COLUMN payload jsonb NOT NULL DEFAULT NULL::jsonb;',
+            'ALTER TABLE t_order ADD COLUMN payload jsonb NOT NULL DEFAULT nullable_value()::jsonb;',
+        ):
+            self.assertIn("POSTGRESQL-UPG-007", self.rule_ids(unsafe, "postgresql"))
+
+    def test_postgresql_record_comparisons_are_not_schema_bindings(self) -> None:
+        for sql in (
+            "INSERT INTO t_config (id, payload) VALUES (1, '{}'::jsonb) ON CONFLICT (id) DO UPDATE SET payload=EXCLUDED.payload WHERE t_config.payload IS DISTINCT FROM EXCLUDED.payload;",
+            "CREATE FUNCTION protect_order() RETURNS trigger AS $$ BEGIN IF OLD.deleted_at IS DISTINCT FROM NEW.deleted_at THEN RAISE EXCEPTION 'read only'; END IF; RETURN NEW; END $$ LANGUAGE plpgsql;",
+            "CREATE FUNCTION protect_order() RETURNS trigger AS $$ BEGIN IF NEW.update_user_id IS NOT DISTINCT FROM NEW.delete_user_id THEN RETURN NEW; END IF; RETURN OLD; END $$ LANGUAGE plpgsql;",
+            "SELECT o.id FROM t_order AS o WHERE o.payload IS DISTINCT /* comparison */ FROM other.payload;",
+        ):
+            with self.subTest(sql=sql):
+                self.assertNotIn("POSTGRESQL-DBS-003", self.rule_ids(sql, "postgresql"))
+        # OLD/NEW/EXCLUDED are only records in expressions, never a schema exemption.
+        for sql in (
+            'SELECT id FROM new.t_order;',
+            'SELECT id FROM old.t_order;',
+            'SELECT id FROM excluded.t_order;',
+            'CREATE FUNCTION f() RETURNS trigger AS $$ BEGIN SELECT id FROM new.t_order INTO NEW.id; RETURN NEW; END $$ LANGUAGE plpgsql;',
+        ):
+            with self.subTest(sql=sql):
+                self.assertIn("POSTGRESQL-DBS-003", self.rule_ids(sql, "postgresql"))
+
+    def test_postgresql_archives_reject_environment_binding(self) -> None:
+        for sql in (
+            'CREATE TABLE IF NOT EXISTS public.t_order (id text PRIMARY KEY);',
+            'ALTER TABLE "orders"."t_order" ADD COLUMN title text;',
+            'SELECT id FROM public.t_order;',
+            'SET LOCAL search_path TO orders;',
+            "SELECT pg_catalog.set_config('search_path', 'orders', true);",
+            'CREATE SCHEMA orders;',
+            'ALTER FUNCTION protect_order() SET search_path TO orders;',
+            'CALL apply_migration();',
+            'ALTER TABLE t_order OWNER TO order_owner;',
+            "CREATE FUNCTION migrate() RETURNS void AS $$ DECLARE target_schema name := pg_catalog.current_schema(); BEGIN NULL; END $$ LANGUAGE plpgsql;",
+            "CREATE FUNCTION migrate() RETURNS void AS $$ BEGIN EXECUTE 'ALTER TABLE t_order ADD COLUMN x text'; END $$ LANGUAGE plpgsql;",
+        ):
+            with self.subTest(sql=sql):
+                self.assertIn("POSTGRESQL-DBS-003", self.rule_ids(sql, "postgresql"))
+
+    def test_postgresql_direct_sql_and_business_trigger_bodies_remain_supported(self) -> None:
+        for sql in (
+            'CREATE TABLE IF NOT EXISTS t_order (id text PRIMARY KEY);',
+            'ALTER TABLE t_order RENAME COLUMN title TO name;',
+            "INSERT INTO t_order (id) VALUES ('1') ON CONFLICT (id) DO NOTHING;",
+            'SELECT o.id FROM t_order AS o JOIN t_owner AS u ON u.id=o.owner_id;',
+            'SELECT current_schema(), pg_catalog.current_database();',
+            'SELECT relname FROM pg_catalog.pg_class;',
+            'SELECT EXTRACT(year FROM o.created_at) FROM t_order AS o;',
+            'COMMENT ON COLUMN t_order.id IS NULL;',
+            "SELECT 'DO $$ BEGIN SET search_path TO x; END $$' AS example;",
+            "-- DO $$ BEGIN NULL; END $$;\nSELECT id FROM t_order;",
+            "CREATE OR REPLACE FUNCTION protect_order() RETURNS trigger AS $$ BEGIN IF OLD.closed THEN RAISE EXCEPTION 'read only'; END IF; RETURN NEW; END $$ LANGUAGE plpgsql;",
+            'CREATE TRIGGER protect_order BEFORE UPDATE ON t_order FOR EACH ROW EXECUTE FUNCTION protect_order();',
+        ):
+            with self.subTest(sql=sql):
+                self.assertNotIn("POSTGRESQL-DBS-003", self.rule_ids(sql, "postgresql"))
+
     def test_verified_rollback_only_covers_the_exact_inverse_operation(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -167,7 +240,7 @@ class SqlGuardTest(unittest.TestCase):
         ):
             with self.subTest(sql=sql):
                 _, findings = sql_guard.inspect("table.sql", sql, "postgresql")
-                self.assertEqual([("POSTGRESQL-GTAB-004", "block")], [
+                self.assertEqual([("POSTGRESQL-DBS-003", "block"), ("POSTGRESQL-GTAB-004", "block")], [
                     (item.rule_id, item.gate) for item in findings
                 ])
 
@@ -315,7 +388,7 @@ class SqlGuardTest(unittest.TestCase):
             ("CREATE TABLE IF NOT EXISTS cafe\u0301 (id BIGSERIAL PRIMARY KEY);",
              [("POSTGRESQL-PK-001", "block")]),
             ("ALTER TABLE public.q\u0301 ENGINE=InnoDB;",
-             [("POSTGRESQL-TAB-001", "warn")]),
+             [("POSTGRESQL-DBS-003", "block"), ("POSTGRESQL-TAB-001", "warn")]),
             ("CREATE TABLE IF NOT EXISTS café (cafe\u0301 BIGSERIAL, café UUID, PRIMARY KEY (café));", []),
             ("CREATE TABLE IF NOT EXISTS café (café BIGSERIAL, cafÉ UUID, PRIMARY KEY (CAFÉ));", []),
         ):
@@ -361,6 +434,8 @@ class SqlGuardTest(unittest.TestCase):
             with self.subTest(dialect=dialect, sql=sql):
                 _, findings = sql_guard.inspect("insert.sql", sql, dialect)
                 expected = [(self.split_id(dialect, "G.INS.01"), "block")] if expected_block else []
+                if dialect == "postgresql":
+                    expected.insert(0, ("POSTGRESQL-DBS-003", "block"))
                 self.assertEqual(expected, [(item.rule_id, item.gate) for item in findings])
 
     def test_all_mysql_charset_declarations_are_checked(self) -> None:

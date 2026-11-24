@@ -261,7 +261,7 @@
       "source": [
         "project:archived-sql-portability"
       ],
-      "name": "归档 SQL 必须跨环境原样重复执行",
+      "name": "归档 SQL 使用无环境绑定的直接语句",
       "level": "mandatory",
       "gate": "block",
       "scope": [
@@ -274,16 +274,17 @@
       "dialects": [
         "postgresql"
       ],
-      "condition": "初始化、升级、回滚、数据订正及其他归档业务脚本必须是目标方言可直接执行的纯 SQL。脚本中禁止出现目标数据库、账号、schema 或 search_path 配置，包括具体值、占位符、连接命令、环境限定的对象引用及动态 SQL 中的环境绑定。只使用当前连接上下文中的非限定业务对象名。归档脚本禁止数据库或 schema 管理、限定业务对象的 schema 名（包括 public）、角色管理、OWNER TO、面向账号或角色的授权、SET ROLE、SET SESSION AUTHORIZATION，以及设置或重置 search_path（包括 SET LOCAL、set_config 和例程配置）。在满足预期前置状态、数据库版本与执行权限的目标环境中，同一份文件须原样连续执行至少两次并成功。第二次执行后的结构和持久数据须符合首次执行后的预期，不得重复插入、累加或覆盖已有业务数据。已有对象必须核对定义，单用 IF NOT EXISTS 跳过同名对象不足以证明可重跑。",
+      "condition": "初始化、升级、回滚、数据订正及其他归档业务脚本必须使用目标方言可直接执行的原生 DDL/DML。脚本中禁止指定或绑定目标数据库、账号、schema 或 search_path，包括具体值、占位符、连接命令、环境限定对象引用及 target_schema := current_schema() 一类目标环境变量。只使用当前连接上下文中的非限定业务对象名。禁止匿名 DO 迁移块、以条件或循环包装迁移、动态 SQL，以及通过临时函数或过程隐藏同类迁移。禁止数据库或 schema 管理、限定业务对象的 schema 名（包括 public）、角色管理、OWNER TO、面向账号或角色的授权、SET ROLE、SET SESSION AUTHORIZATION，以及设置或重置 search_path（包括 SET LOCAL、set_config、set_path 和例程配置）。为既有业务行为必需的函数和触发器可用原生 CREATE FUNCTION/TRIGGER 保留，但不得作为迁移包装的替代。版本升级和回滚从各自声明的前置版本执行一次；不能要求每个版本 DDL 原地连续重跑，不能为重跑引入过程包装。初始化和原生幂等 DML 应单独声明其重复策略，使用稳定键和状态条件避免重复写入或覆盖业务数据。对象定义及不兼容数据在独立只读核验或隔离测试中检查。",
       "check": {
-        "kind": "manual",
-        "detector": "审查完整归档脚本及部署配置，覆盖注释、转储头部、客户端指令、模板变量和动态 SQL。在两个使用不同库名、角色和 schema 的兼容 PostgreSQL 环境连续执行同一文件两次，记录执行结果并比对两次执行后的预期结构与数据。升级与回滚分别从各自的前置状态验证。"
+        "kind": "hybrid",
+        "review_gate": "warn",
+        "detector": "静态阻断高置信的匿名 DO、环境配置、顶层业务对象 schema 限定、例程目标环境变量及动态 SQL；其余对象引用、客户端指令、占位符、函数用途与执行前置条件人工复核。在两个使用不同库名、角色和 schema 的兼容 PostgreSQL 环境，从声明前置版本执行同一文件并对比预期结构和持久数据。只对明确声明可重复的初始化或 DML 验证重复执行，升级与回滚以往返核验其对应版本。"
       },
       "examples": {
-        "positive": "app_setting 的 id 为主键，且不存在其他唯一键或更新触发器。初始化默认值时保留已存在的记录：INSERT INTO app_setting (id, setting_value) VALUES (1, 'enabled') ON CONFLICT (id) DO NOTHING;",
-        "negative": "SET search_path TO order_service; CREATE SCHEMA order_service AUTHORIZATION order_owner; ALTER TABLE order_service.t_order OWNER TO order_owner;"
+        "positive": "ALTER TABLE t_order RENAME COLUMN title TO name; -- 前置版本与配对回滚在发布清单声明，由外部只读核验确认结构。",
+        "negative": "DO $migration$ DECLARE target_schema name := pg_catalog.current_schema(); BEGIN EXECUTE format('ALTER TABLE %I.t_order ADD COLUMN name text', target_schema); END $migration$;"
       },
-      "remediation": "移除脚本内的环境信息和配置操作，由部署或连接选择运行上下文。使用稳定键和明确的状态条件实现重复执行，再提供隔离环境证据。",
+      "remediation": "移除脚本内目标环境绑定和匿名迁移包装，展开固定操作为直接 SQL；由连接选择上下文，由独立只读核验检查前置版本、结构和不兼容数据，再提供隔离执行及配对回滚证据。",
       "confirmation_required": false
     },
     {
@@ -692,7 +693,7 @@
       "dialects": [
         "postgresql"
       ],
-      "condition": "PostgreSQL 16 通过 ALTER TABLE ... ALTER COLUMN ... TYPE [USING] 改类型，可能重写表并持锁；使用扩展-回填-切换-收缩方案。 同批回滚仅撤销升级新增对象或恢复升级前定义，且有证据证明结构与持久数据往返一致时，按正常逆操作检查方言语法。向前变更与无法证明可逆的回滚继续按本规则判定。",
+      "condition": "PostgreSQL 16 通过 ALTER TABLE ... ALTER COLUMN ... TYPE [USING] 改类型，可能重写表并持锁；使用扩展-回填-切换-收缩方案。 同批回滚仅撤销升级新增对象或恢复升级前定义，且有证据证明结构与持久数据往返一致时，按正常逆操作检查方言语法。向前变更与无法证明可逆的回滚继续按本规则判定。 对既有已批准迁移改为直接 SQL 的表示变化，可使用可信隔离测试生成的 existing-migration-expansion 回执逐语句核验：旧参考及当前四侧脚本的 SHA256、同前置与同夹具、完整结构和持久数据对照均匹配，且当前完整原生语句与旧源码可执行位置相同。此例外只保留既有操作，不允许新增或改变操作，也不豁免 DO、schema 或环境绑定禁令。",
       "check": {
         "kind": "static",
         "detector": "由 sql_guard.py 按方言语法解析并阻断。"
@@ -718,7 +719,7 @@
       "dialects": [
         "postgresql"
       ],
-      "condition": "PostgreSQL 16 新增无默认值的 NOT NULL 列会因已有行不满足约束而失败；先加可空列、回填、验证再收紧。",
+      "condition": "PostgreSQL 16 新增无默认值的 NOT NULL 列会因已有行不满足约束而失败；先加可空列、回填、验证再收紧。 对既有已批准迁移改为直接 SQL 的表示变化，可使用可信隔离测试生成的 existing-migration-expansion 回执逐语句核验：旧参考及当前四侧脚本的 SHA256、同前置与同夹具、完整结构和持久数据对照均匹配，且当前完整原生语句与旧源码可执行位置相同。此例外只保留既有操作，不允许新增或改变操作，也不豁免 DO、schema 或环境绑定禁令。",
       "check": {
         "kind": "static",
         "detector": "由 sql_guard.py 按方言语法解析并阻断。"
@@ -744,7 +745,7 @@
       "dialects": [
         "postgresql"
       ],
-      "condition": "PostgreSQL 16 使用 ALTER COLUMN ... SET NOT NULL 并检查现有数据；先通过可验证约束与回填方案降低锁风险。 同批回滚仅撤销升级新增对象或恢复升级前定义，且有证据证明结构与持久数据往返一致时，按正常逆操作检查方言语法。向前变更与无法证明可逆的回滚继续按本规则判定。",
+      "condition": "PostgreSQL 16 使用 ALTER COLUMN ... SET NOT NULL 并检查现有数据；先通过可验证约束与回填方案降低锁风险。 同批回滚仅撤销升级新增对象或恢复升级前定义，且有证据证明结构与持久数据往返一致时，按正常逆操作检查方言语法。向前变更与无法证明可逆的回滚继续按本规则判定。 对既有已批准迁移改为直接 SQL 的表示变化，可使用可信隔离测试生成的 existing-migration-expansion 回执逐语句核验：旧参考及当前四侧脚本的 SHA256、同前置与同夹具、完整结构和持久数据对照均匹配，且当前完整原生语句与旧源码可执行位置相同。此例外只保留既有操作，不允许新增或改变操作，也不豁免 DO、schema 或环境绑定禁令。",
       "check": {
         "kind": "static",
         "detector": "由 sql_guard.py 按方言语法解析并阻断。"
@@ -770,7 +771,7 @@
       "dialects": [
         "postgresql"
       ],
-      "condition": "PostgreSQL 16 项目治理要求：避免使用外键（禁止） 判定必须使用 PostgreSQL 16 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 MySQL 结论。 同批回滚仅撤销升级新增对象或恢复升级前定义，且有证据证明结构与持久数据往返一致时，按正常逆操作检查方言语法。向前变更与无法证明可逆的回滚继续按本规则判定。",
+      "condition": "PostgreSQL 16 项目治理要求：避免使用外键（禁止） 判定必须使用 PostgreSQL 16 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 MySQL 结论。 同批回滚仅撤销升级新增对象或恢复升级前定义，且有证据证明结构与持久数据往返一致时，按正常逆操作检查方言语法。向前变更与无法证明可逆的回滚继续按本规则判定。 对既有已批准迁移改为直接 SQL 的表示变化，可使用可信隔离测试生成的 existing-migration-expansion 回执逐语句核验：旧参考及当前四侧脚本的 SHA256、同前置与同夹具、完整结构和持久数据对照均匹配，且当前完整原生语句与旧源码可执行位置相同。此例外只保留既有操作，不允许新增或改变操作，也不豁免 DO、schema 或环境绑定禁令。",
       "check": {
         "kind": "static",
         "detector": "由 sql_guard.py 使用 PostgreSQL 16 lexer/grammar 高置信判定。"
@@ -978,7 +979,7 @@
       "dialects": [
         "postgresql"
       ],
-      "condition": "PostgreSQL 16 项目治理要求：禁止drop表字段 判定必须使用 PostgreSQL 16 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 MySQL 结论。 同批回滚仅撤销升级新增对象或恢复升级前定义，且有证据证明结构与持久数据往返一致时，按正常逆操作检查方言语法。向前变更与无法证明可逆的回滚继续按本规则判定。",
+      "condition": "PostgreSQL 16 项目治理要求：禁止drop表字段 判定必须使用 PostgreSQL 16 的真实语法、对象、类型、函数、操作符、优化器与运行行为；不得套用 MySQL 结论。 同批回滚仅撤销升级新增对象或恢复升级前定义，且有证据证明结构与持久数据往返一致时，按正常逆操作检查方言语法。向前变更与无法证明可逆的回滚继续按本规则判定。 对既有已批准迁移改为直接 SQL 的表示变化，可使用可信隔离测试生成的 existing-migration-expansion 回执逐语句核验：旧参考及当前四侧脚本的 SHA256、同前置与同夹具、完整结构和持久数据对照均匹配，且当前完整原生语句与旧源码可执行位置相同。此例外只保留既有操作，不允许新增或改变操作，也不豁免 DO、schema 或环境绑定禁令。",
       "check": {
         "kind": "static",
         "detector": "识别 ALTER TABLE 顶层子命令中的 DROP [COLUMN]；排除索引、键与约束等非列操作。"

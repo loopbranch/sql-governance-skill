@@ -6,14 +6,24 @@
 
 ### Added
 
+- 可信迁移回执增加逐语句 `existing-migration-expansion`：锁定旧参考及当前四侧哈希、同前置/夹具和结构/数据对照摘要，只解释五条既有结构规则的原生操作表示变化；新操作、旧注释/字符串伪来源及 DO/schema 禁令不获豁免。
+- 普通逆操作证据支持多行同类类型转换、ON DELETE CASCADE、DEFERRABLE INITIALLY DEFERRED，并以 V/U 身份区分同日批次；混合无关 ALTER 仍拒绝。
+
 - 支持按批次读取可信迁移往返回执，对已经验证且定位明确的回滚逆操作单独判定。
 
 ### Changed
+
+- PostgreSQL 归档脚本明确使用直接原生 SQL，禁止匿名 DO、迁移条件/循环、动态 SQL 和目标 schema 变量；保留必要业务函数/触发器。`POSTGRESQL-DBS-003` 从人工规则改为带静态高置信分支的 hybrid，属于 MAJOR 门禁变化。
+- PostgreSQL 版本 DDL 按声明前置版本单次执行并核验往返；移除强制每版原地连续重跑的要求，仅对声明可重复的初始化和 DML 核对重跑。对象定义和不兼容数据通过独立只读核验或隔离测试检查。
 
 - MySQL 和 PostgreSQL 的服务隔离规则明确由部署或连接配置提供数据库、账号、schema 和搜索路径，并更新示例。
 - 新增归档 SQL 人工 Block 门禁，禁止在文件内指定目标环境，要求同一文件在不同目标环境原样重跑。新增阻断条件属于 MAJOR 变更。
 
 ### Fixed
+
+- PostgreSQL 非空 JSONB 字面量默认值的原生 `::jsonb` 转型不再误报直接新增 NOT NULL；NULL 和函数表达式仍按原规则阻断。
+
+- PostgreSQL 可移植性筛查按 `IS [NOT] DISTINCT FROM` 的表达式语法识别 `FROM`，避免把普通列别名及 `OLD`、`NEW`、`EXCLUDED` 记录字段误报为 schema；关系位置中的同名 schema 仍阻断。
 
 - 支持 PostgreSQL UTF-8 裸标识符中的组合字符，保留主键列名的非 ASCII 大小写和 Unicode 写法差异。
 - PostgreSQL 的列名、类型及表达式中的 `engine`、`charset` 和 `auto_increment` 可以通过同名 MySQL 表语法筛查。
