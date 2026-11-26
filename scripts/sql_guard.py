@@ -35,7 +35,7 @@ DIALECT_GUARD_RULES = {
         "MYSQL-TXN-007", "MYSQL-UPD-001", "MYSQL-UPD-002", "MYSQL-UPG-005",
         "MYSQL-UPG-007", "MYSQL-UPG-008", "MYSQL-GDEL-001", "MYSQL-GINS-001",
         "MYSQL-GSEL-012", "MYSQL-GTAB-004", "MYSQL-GTAB-016", "MYSQL-GTXN-001",
-        "MYSQL-GUPD-001", "MYSQL-GUPG-003", "MYSQL-GUPG-010", "MYSQL-GUPG-011",
+        "MYSQL-GUPD-001", "MYSQL-GUPG-003", "MYSQL-GUPG-010", "MYSQL-GUPG-011", "MYSQL-DML-001",
     },
     "postgresql": {
         "POSTGRESQL-PK-001", "POSTGRESQL-SEL-008", "POSTGRESQL-TAB-001",
@@ -44,7 +44,7 @@ DIALECT_GUARD_RULES = {
         "POSTGRESQL-GDEL-001", "POSTGRESQL-GINS-001", "POSTGRESQL-GSEL-012",
         "POSTGRESQL-GTAB-004", "POSTGRESQL-GTAB-016", "POSTGRESQL-GTXN-001",
         "POSTGRESQL-GUPD-001", "POSTGRESQL-GUPG-003", "POSTGRESQL-GUPG-010",
-        "POSTGRESQL-GUPG-011", ARCHIVE_REPLAY_RULE,
+        "POSTGRESQL-GUPG-011", "POSTGRESQL-DML-001", ARCHIVE_REPLAY_RULE,
     },
 }
 
@@ -157,7 +157,7 @@ def split_statements(sql: str, dialect: str | None = None, *, mysql_no_backslash
 
 def mask_literals_and_comments(
     sql: str, dialect: str | None = None, *, mysql_no_backslash_escapes: bool = False,
-    preserve_identifiers: bool = False, mark_strings: bool = False,
+    preserve_identifiers: bool = False, mark_strings: bool = False, mysql_executable_sql: bool = False,
 ) -> str:
     """Replace literal/comment contents with spaces while preserving layout and identifiers."""
     chars = list(sql)
@@ -174,6 +174,12 @@ def mask_literals_and_comments(
                     end += 1
             for pos in range(index, end):
                 if chars[pos] != "\n": chars[pos] = " "
+            if mysql_executable_sql and dialect == "mysql" and depth == 0 and sql.startswith("/*!", index):
+                version = re.match(r"[0-9]{5}", sql[index + 3:end - 2])
+                body_start = index + 3 + (len(version.group(0)) if version else 0)
+                chars[body_start:end - 2] = mask_literals_and_comments(
+                    sql[body_start:end - 2], dialect, mysql_no_backslash_escapes=mysql_no_backslash_escapes,
+                )
             index = end
             continue
         if starts_line_comment(sql, index, dialect):
@@ -569,6 +575,18 @@ def inspect_statement(file: str, line: int, statement: str, dialect: str, *, mys
     normalized = re.sub(r"\s+", " ", masked).strip().lower()
     words = top_level_words(normalized)
     main = main_statement(words)
+
+    truncate_sql = masked
+    if dialect == "mysql" and "/*!" in statement:
+        truncate_sql = mask_literals_and_comments(
+            statement, dialect, mysql_no_backslash_escapes=mysql_no_backslash_escapes, mysql_executable_sql=True,
+        )
+    truncate = re.match(r"\s*(truncate)(?![\w$])", truncate_sql, re.I)
+    if truncate:
+        add(
+            findings, file, line + truncate_sql[:truncate.start(1)].count("\n"), f"{dialect.upper()}-DML-001", dialect,
+            "TRUNCATE is prohibited; use an approved, explicitly scoped deletion", statement,
+        )
 
     if dialect == "postgresql" and normalized.startswith("with "):
         for start, end in cte_bodies(masked):
