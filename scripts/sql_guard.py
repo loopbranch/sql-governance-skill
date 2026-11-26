@@ -455,8 +455,13 @@ def has_top_level_clause(definition: str, keyword: str, pattern: str) -> bool:
 PG_QUOTED_NAME = r'(?:u&)?"(?:[^"]|"")+"'
 PG_NAME = rf"(?:{PG_QUOTED_NAME}|{UNQUOTED_IDENTIFIER})"
 PG_TABLE = rf"{PG_NAME}(?:\s*\.\s*{PG_NAME})?"
+PG_NAME_BOUNDARY = r'(?:\s+|(?=(?:u&)?"))'
+PG_ADD_COLUMN = re.compile(
+    rf"^add{PG_NAME_BOUNDARY}(?:column{PG_NAME_BOUNDARY})?"
+    rf"(?P<guard>if\s+not\s+exists{PG_NAME_BOUNDARY})?", re.I,
+)
 PG_ALTER_TARGET = re.compile(
-    rf"^alter\s+table\s+(?:if\s+exists\s+)?(?:only\s*\(\s*{PG_TABLE}\s*\)|"
+    rf"^alter\s+table{PG_NAME_BOUNDARY}(?:if\s+exists{PG_NAME_BOUNDARY})?(?:only\s*\(\s*{PG_TABLE}\s*\)|"
     rf"(?:only\s+)?{PG_TABLE}(?:\s*\*)?)(?:\s+|(?<=[\")*]))", re.I,
 )
 
@@ -467,8 +472,8 @@ def postgresql_added_columns(ddl: str, *, unprotected_only: bool = False) -> lis
         return []
     columns = []
     for action in comma_separated(ddl[table.end():]):
-        add_column = ADD_COLUMN.match(action.lower())
-        if add_column and not (unprotected_only and re.search(r"\bif\s+not\s+exists\s+$", add_column.group())):
+        add_column = PG_ADD_COLUMN.match(action)
+        if add_column and not (unprotected_only and add_column.group("guard")):
             columns.append(action[add_column.end():])
     return columns
 
