@@ -1040,6 +1040,26 @@
       },
       "remediation": "按 MySQL 5.7 官方规范和本规则整改；不得复制 PostgreSQL 语法。规范入口见 references/dialect-spec-sources.md。",
       "confirmation_required": true
+    },
+    {
+      "id": "MYSQL-DML-001",
+      "source": ["project:prohibit-truncate"],
+      "name": "禁止使用 TRUNCATE 清除表数据",
+      "level": "prohibition",
+      "gate": "block",
+      "scope": ["del"],
+      "dialects": ["mysql"],
+      "condition": "禁止使用 TRUNCATE 清除表数据。",
+      "check": {
+        "kind": "static",
+        "detector": "在屏蔽字面量、普通注释后识别 TRUNCATE 命令。"
+      },
+      "examples": {
+        "positive": "DELETE FROM t_job WHERE job_id = 42;",
+        "negative": "TRUNCATE TABLE t_job;"
+      },
+      "remediation": "确认数据范围和恢复方案后，使用有明确条件且通过删除规则的操作。",
+      "confirmation_required": false
     }
   ]
 }

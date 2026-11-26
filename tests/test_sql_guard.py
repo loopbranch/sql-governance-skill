@@ -138,6 +138,22 @@ class SqlGuardTest(unittest.TestCase):
     def split_id(self, dialect: str, source_id: str) -> str:
         return sql_guard.split_rule_id(dialect, source_id)
 
+    def test_truncate_is_blocked_in_both_dialects(self) -> None:
+        for dialect, sql in [
+            ("mysql", "TRUNCATE TABLE `t_job`;"),
+            ("mysql", "/* archived */\n/*!50000 TRUNCATE t_job */;"),
+            ("postgresql", 'TRUNCATE ONLY "t_job", t_other RESTART IDENTITY CASCADE;'),
+        ]:
+            with self.subTest(dialect=dialect, sql=sql):
+                _, findings = sql_guard.inspect("example.sql", sql, dialect)
+                self.assertEqual([(f"{dialect.upper()}-DML-001", "block")], [(item.rule_id, item.gate) for item in findings])
+
+    def test_truncate_in_literal_or_comment_is_not_a_command(self) -> None:
+        for dialect in ["mysql", "postgresql"]:
+            with self.subTest(dialect=dialect):
+                sql = "/* TRUNCATE TABLE t_job; */ SELECT '/*!50000 TRUNCATE TABLE t_job */' AS note;"
+                self.assertNotIn(f"{dialect.upper()}-DML-001", self.rule_ids(sql, dialect))
+
     def test_string_where_does_not_satisfy_update_filter(self) -> None:
         self.assertIn(self.split_id("mysql", "G.UPD.01"), self.rule_ids("update t_user set note='where x';", "mysql"))
 

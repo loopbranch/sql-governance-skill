@@ -25,6 +25,8 @@
 
 ## 自动门禁覆盖
 
+`MYSQL-DML-001` 和 `POSTGRESQL-DML-001` 阻断直接执行的 `TRUNCATE`。MySQL 可执行注释中的直接语句同样检查。例程和动态 SQL 中的清理操作需要结合上下文检视。
+
 归档 PostgreSQL SQL 应传入 `--archived-sql` 以启用 `POSTGRESQL-UPG-012`。整批重跑必须由隔离数据库执行器验证，静态检查通过不能代替重跑结果。
 
 `check.kind=static` 表示 `scripts/sql_guard.py` 已实现自动判定，列入 JSON 的 `checked_rules`。带有 `check.review_gate` 的混合规则列入 `screened_rules`。候选命中按 `review_gate=warn` 输出，明确的违规分支仍使用规则定义的 `gate`。退出码由实际发现的 Block 决定。
