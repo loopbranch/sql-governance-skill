@@ -23,6 +23,9 @@ class SqlGuardTest(unittest.TestCase):
         command = [sys.executable, str(MODULE_PATH), "--dialect", "postgresql", "--archived-sql", "--format", "json", "-"]
         for sql, blocked in (
             ("ALTER TABLE t_project ADD COLUMN template_id character varying(128);", True),
+            ('ALTER TABLE "t_project"ADD COLUMN "template_id"varchar(128);', True),
+            ('ALTER TABLE ONLY (t_project) ADD COLUMN template_id text;', True),
+            ('ALTER TABLE U&"t_project" ADD COLUMN U&"template_id" text;', True),
             ('ALTER TABLE ONLY "t,project" ADD COLUMN IF NOT EXISTS a numeric(12,2), ADD "template,id" text;', True),
             ("ALTER TABLE t_project ADD COLUMN /* replay */ IF NOT EXISTS template_id text;", False),
             ("ALTER TABLE t_project ADD CONSTRAINT sample CHECK (true);", False),

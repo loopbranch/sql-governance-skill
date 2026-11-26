@@ -452,8 +452,17 @@ def has_top_level_clause(definition: str, keyword: str, pattern: str) -> bool:
     )
 
 
+PG_QUOTED_NAME = r'(?:u&)?"(?:[^"]|"")+"'
+PG_NAME = rf"(?:{PG_QUOTED_NAME}|{UNQUOTED_IDENTIFIER})"
+PG_TABLE = rf"{PG_NAME}(?:\s*\.\s*{PG_NAME})?"
+PG_ALTER_TARGET = re.compile(
+    rf"^alter\s+table\s+(?:if\s+exists\s+)?(?:only\s*\(\s*{PG_TABLE}\s*\)|"
+    rf"(?:only\s+)?{PG_TABLE}(?:\s*\*)?)(?:\s+|(?<=[\")*]))", re.I,
+)
+
+
 def postgresql_added_columns(ddl: str, *, unprotected_only: bool = False) -> list[str]:
-    table = re.match(rf"^alter\s+table\s+(?:if\s+exists\s+)?(?:only\s+)?{TABLE_NAME}(?:\s*\*)?\s+", ddl, re.I)
+    table = PG_ALTER_TARGET.match(ddl)
     if not table:
         return []
     columns = []
@@ -467,7 +476,7 @@ def postgresql_added_columns(ddl: str, *, unprotected_only: bool = False) -> lis
 def postgresql_column_definitions(columns: list[str]) -> list[str]:
     definitions = []
     for column in columns:
-        name = re.match(rf"{IDENTIFIER}\s+", column)
+        name = re.match(rf"{PG_NAME}(?:\s+|(?<=\"))", column, re.I)
         if name and name.group().strip().lower() not in {"check", "constraint", "exclude", "foreign", "primary", "unique"}:
             definitions.append(column[name.end():])
     return definitions
