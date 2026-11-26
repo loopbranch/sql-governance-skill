@@ -287,6 +287,26 @@
       "confirmation_required": false
     },
     {
+      "id": "POSTGRESQL-UPG-012",
+      "source": ["project:archived-sql-replay"],
+      "name": "PostgreSQL 归档 SQL 新增列必须具备防重保护",
+      "level": "mandatory",
+      "gate": "block",
+      "scope": ["upg", "migration", "rollback"],
+      "dialects": ["postgresql"],
+      "condition": "归档 SQL 使用 ALTER TABLE ADD [COLUMN] IF NOT EXISTS；同名列定义和整批效果仍按 POSTGRESQL-DBS-003 核验。",
+      "check": {
+        "kind": "static",
+        "detector": "启用 --archived-sql 后识别 ALTER TABLE 的每条顶层新增列子命令。"
+      },
+      "examples": {
+        "positive": "ALTER TABLE t_project ADD COLUMN IF NOT EXISTS template_id varchar(128);",
+        "negative": "ALTER TABLE t_project ADD COLUMN template_id varchar(128);"
+      },
+      "remediation": "加列使用 IF NOT EXISTS，确认同名列定义，验证整个归档批次连续执行后的结构和持久数据。",
+      "confirmation_required": true
+    },
+    {
       "id": "POSTGRESQL-TAB-013",
       "source": [
         "G.TAB.13"

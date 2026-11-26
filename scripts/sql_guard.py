@@ -28,6 +28,7 @@ class Finding:
 
 
 COMMON_GUARD_RULES: set[str] = set()
+ARCHIVE_REPLAY_RULE = "POSTGRESQL-UPG-012"
 DIALECT_GUARD_RULES = {
     "mysql": {
         "MYSQL-ENC-001", "MYSQL-PK-001", "MYSQL-SEL-008", "MYSQL-TAB-001",
@@ -43,7 +44,7 @@ DIALECT_GUARD_RULES = {
         "POSTGRESQL-GDEL-001", "POSTGRESQL-GINS-001", "POSTGRESQL-GSEL-012",
         "POSTGRESQL-GTAB-004", "POSTGRESQL-GTAB-016", "POSTGRESQL-GTXN-001",
         "POSTGRESQL-GUPD-001", "POSTGRESQL-GUPG-003", "POSTGRESQL-GUPG-010",
-        "POSTGRESQL-GUPG-011",
+        "POSTGRESQL-GUPG-011", ARCHIVE_REPLAY_RULE,
     },
 }
 
@@ -451,14 +452,28 @@ def has_top_level_clause(definition: str, keyword: str, pattern: str) -> bool:
     )
 
 
-def postgresql_added_columns(ddl: str) -> list[str]:
-    table = re.match(rf"^alter\s+table\s+(?:if\s+exists\s+)?(?:only\s+)?{TABLE_NAME}(?:\s*\*)?\s+", ddl, re.I)
+PG_QUOTED_NAME = r'(?:u&)?"(?:[^"]|"")+"'
+PG_NAME = rf"(?:{PG_QUOTED_NAME}|{UNQUOTED_IDENTIFIER})"
+PG_TABLE = rf"{PG_NAME}(?:\s*\.\s*{PG_NAME})?"
+PG_NAME_BOUNDARY = r'(?:\s+|(?=(?:u&)?"))'
+PG_ADD_COLUMN = re.compile(
+    rf"^add{PG_NAME_BOUNDARY}(?:column{PG_NAME_BOUNDARY})?"
+    rf"(?P<guard>if\s+not\s+exists{PG_NAME_BOUNDARY})?", re.I,
+)
+PG_ALTER_TARGET = re.compile(
+    rf"^alter\s+table{PG_NAME_BOUNDARY}(?:if\s+exists{PG_NAME_BOUNDARY})?(?:only\s*\(\s*{PG_TABLE}\s*\)|"
+    rf"(?:only{PG_NAME_BOUNDARY})?{PG_TABLE}(?:\s*\*)?)(?:\s+|(?<=[\")*]))", re.I,
+)
+
+
+def postgresql_added_columns(ddl: str, *, unprotected_only: bool = False) -> list[str]:
+    table = PG_ALTER_TARGET.match(ddl)
     if not table:
         return []
     columns = []
     for action in comma_separated(ddl[table.end():]):
-        add_column = ADD_COLUMN.match(action.lower())
-        if add_column:
+        add_column = PG_ADD_COLUMN.match(action)
+        if add_column and not (unprotected_only and add_column.group("guard")):
             columns.append(action[add_column.end():])
     return columns
 
@@ -466,7 +481,7 @@ def postgresql_added_columns(ddl: str) -> list[str]:
 def postgresql_column_definitions(columns: list[str]) -> list[str]:
     definitions = []
     for column in columns:
-        name = re.match(rf"{IDENTIFIER}\s+", column)
+        name = re.match(rf"{PG_NAME}(?:\s+|(?<=\"))", column, re.I)
         if name and name.group().strip().lower() not in {"check", "constraint", "exclude", "foreign", "primary", "unique"}:
             definitions.append(column[name.end():])
     return definitions
@@ -547,7 +562,8 @@ def cte_bodies(masked: str) -> list[tuple[int, int]]:
     return bodies
 
 
-def inspect_statement(file: str, line: int, statement: str, dialect: str, *, mysql_no_backslash_escapes: bool = False) -> list[Finding]:
+def inspect_statement(file: str, line: int, statement: str, dialect: str, *, mysql_no_backslash_escapes: bool = False,
+                      archived_sql: bool = False) -> list[Finding]:
     findings: list[Finding] = []
     masked = mask_literals_and_comments(statement, dialect, mysql_no_backslash_escapes=mysql_no_backslash_escapes)
     normalized = re.sub(r"\s+", " ", masked).strip().lower()
@@ -618,6 +634,10 @@ def inspect_statement(file: str, line: int, statement: str, dialect: str, *, mys
     if re.match(r"^drop\s+table\b", normalized) and not re.match(r"^drop\s+table\s+if\s+exists\b", normalized):
         add(findings, file, line, split_rule_id(dialect, "G.UPG.11"), dialect, "DROP TABLE must use IF EXISTS", statement)
     if alter_table:
+        if dialect == "postgresql" and archived_sql and postgresql_column_definitions(
+            postgresql_added_columns(ddl, unprotected_only=True)
+        ):
+            add(findings, file, line, ARCHIVE_REPLAY_RULE, dialect, "Archived ADD COLUMN must use IF NOT EXISTS", statement)
         if drops_column(ddl.lower(), dialect):
             add(findings, file, line, split_rule_id(dialect, "G.UPG.03"), dialect, "Dropping columns is prohibited", statement)
         mysql_type_change = dialect == "mysql" and re.search(r"\b(?:modify|change)\s+(?:column\s+)?", normalized)
@@ -688,13 +708,16 @@ def inspect_statement(file: str, line: int, statement: str, dialect: str, *, mys
     return findings
 
 
-def inspect(file: str, sql: str, requested_dialect: str, *, mysql_no_backslash_escapes: bool = False) -> tuple[str, list[Finding]]:
+def inspect(file: str, sql: str, requested_dialect: str, *, mysql_no_backslash_escapes: bool = False,
+            archived_sql: bool = False) -> tuple[str, list[Finding]]:
     dialect = detect_dialect(sql, mysql_no_backslash_escapes=mysql_no_backslash_escapes) if requested_dialect == "auto" else requested_dialect
     if dialect is None:
         raise ValueError(f"{file}: cannot determine SQL dialect; pass --dialect mysql or --dialect postgresql")
     findings: list[Finding] = []
     for line, statement in split_statements(sql, dialect, mysql_no_backslash_escapes=mysql_no_backslash_escapes):
-        findings.extend(inspect_statement(file, line, statement, dialect, mysql_no_backslash_escapes=mysql_no_backslash_escapes))
+        findings.extend(inspect_statement(
+            file, line, statement, dialect, archived_sql=archived_sql, mysql_no_backslash_escapes=mysql_no_backslash_escapes,
+        ))
     return dialect, findings
 
 
@@ -715,6 +738,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--mysql-no-backslash-escapes", action="store_true", help="Use MySQL NO_BACKSLASH_ESCAPES for the input")
     parser.add_argument("--format", choices=("text", "json"), default="text")
     parser.add_argument("--migration-evidence", help="Trusted migration-test receipt for the scanned batch")
+    parser.add_argument("--archived-sql", action="store_true", help="Require static checks and trusted replay evidence for archived SQL")
+    parser.add_argument("--archive-replay-evidence", help="Trusted receipt of two consecutive executions covering all archived inputs")
     return parser.parse_args()
 
 
@@ -741,10 +766,13 @@ def apply_rollback_evidence(receipt: str, inputs: list[tuple[str, str]], dialect
 
 def main() -> int:
     args = parse_args(); findings: list[Finding] = []; dialects: dict[str, str] = {}
+    archived = bool(args.archived_sql or args.archive_replay_evidence)
     try:
         inputs = read_inputs(args.paths)
         for file, sql in inputs:
-            dialect, current = inspect(file, sql, args.dialect, mysql_no_backslash_escapes=args.mysql_no_backslash_escapes)
+            dialect, current = inspect(
+                file, sql, args.dialect, archived_sql=archived, mysql_no_backslash_escapes=args.mysql_no_backslash_escapes,
+            )
             dialects[file] = dialect
             findings.extend(current)
     except (OSError, UnicodeError, ValueError) as error:
@@ -758,6 +786,21 @@ def main() -> int:
             )
         except (OSError, ValueError) as error:
             evidence_errors.append(str(error))
+    if archived:
+        from migration_evidence import read_archive_replay_receipt
+
+        covered = set()
+        problem = "Missing verified same-database replay evidence"
+        selected = {Path(file).resolve(): (file, sql, dialects[file]) for file, sql in inputs if file != "<stdin>"}
+        if args.archive_replay_evidence:
+            try:
+                covered = read_archive_replay_receipt(args.archive_replay_evidence, selected)
+            except (OSError, ValueError) as error:
+                problem = f"Invalid archive replay evidence: {error}"
+        for file, _ in inputs:
+            if file == "<stdin>" or Path(file).resolve() not in covered:
+                dialect = dialects[file]
+                add(findings, file, 1, f"{dialect.upper()}-DBS-003", dialect, problem, "")
     failed = bool(evidence_errors) or any(item.gate == "block" for item in findings)
     if args.format == "json":
         checked_rules = set(COMMON_GUARD_RULES)
@@ -765,6 +808,8 @@ def main() -> int:
         for dialect in set(dialects.values()):
             metadata = rule_metadata(dialect)
             for rule_id in DIALECT_GUARD_RULES[dialect]:
+                if rule_id == ARCHIVE_REPLAY_RULE and not archived:
+                    continue
                 if metadata[rule_id]["check"]["kind"] == "static":
                     checked_rules.add(rule_id)
                 else:
