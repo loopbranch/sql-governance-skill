@@ -15,10 +15,11 @@
 ### Changed
 
 - MySQL 和 PostgreSQL 的服务隔离规则明确由部署或连接配置提供数据库、账号、schema 和搜索路径，并更新示例。
-- 新增归档 SQL 人工 Block 门禁，禁止在文件内指定目标环境，要求同一文件在不同目标环境原样重跑。新增阻断条件属于 MAJOR 变更。
+- 新增归档 SQL 人工 Block 门禁，禁止在文件内指定目标环境。新增阻断条件属于 MAJOR 变更。
 
 ### Fixed
 
+- 澄清归档重跑证据要求。升级和回滚各自在同一个目标库连续执行至少两次是门禁必需项，多环境验证按兼容需求单独执行。
 - 支持 PostgreSQL UTF-8 裸标识符中的组合字符，保留主键列名的非 ASCII 大小写和 Unicode 写法差异。
 - PostgreSQL 的列名、类型及表达式中的 `engine`、`charset` 和 `auto_increment` 可以通过同名 MySQL 表语法筛查。
 - PostgreSQL 模式发现 MySQL 表选项、列属性、MySQL 特有的 `ALTER TABLE` 子句或反引号标识符时输出 `POSTGRESQL-TAB-001` Warn，提示复核数据库兼容性。
