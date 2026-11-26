@@ -462,7 +462,7 @@ PG_ADD_COLUMN = re.compile(
 )
 PG_ALTER_TARGET = re.compile(
     rf"^alter\s+table{PG_NAME_BOUNDARY}(?:if\s+exists{PG_NAME_BOUNDARY})?(?:only\s*\(\s*{PG_TABLE}\s*\)|"
-    rf"(?:only\s+)?{PG_TABLE}(?:\s*\*)?)(?:\s+|(?<=[\")*]))", re.I,
+    rf"(?:only{PG_NAME_BOUNDARY})?{PG_TABLE}(?:\s*\*)?)(?:\s+|(?<=[\")*]))", re.I,
 )
 
 
