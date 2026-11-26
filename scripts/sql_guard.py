@@ -738,7 +738,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--mysql-no-backslash-escapes", action="store_true", help="Use MySQL NO_BACKSLASH_ESCAPES for the input")
     parser.add_argument("--format", choices=("text", "json"), default="text")
     parser.add_argument("--migration-evidence", help="Trusted migration-test receipt for the scanned batch")
-    parser.add_argument("--archived-sql", action="store_true", help="Enable static replay checks for archived SQL")
+    parser.add_argument("--archived-sql", action="store_true", help="Require static checks and trusted replay evidence for archived SQL")
+    parser.add_argument("--archive-replay-evidence", help="Trusted receipt of two consecutive executions covering all archived inputs")
     return parser.parse_args()
 
 
@@ -765,11 +766,12 @@ def apply_rollback_evidence(receipt: str, inputs: list[tuple[str, str]], dialect
 
 def main() -> int:
     args = parse_args(); findings: list[Finding] = []; dialects: dict[str, str] = {}
+    archived = bool(args.archived_sql or args.archive_replay_evidence)
     try:
         inputs = read_inputs(args.paths)
         for file, sql in inputs:
             dialect, current = inspect(
-                file, sql, args.dialect, archived_sql=args.archived_sql, mysql_no_backslash_escapes=args.mysql_no_backslash_escapes,
+                file, sql, args.dialect, archived_sql=archived, mysql_no_backslash_escapes=args.mysql_no_backslash_escapes,
             )
             dialects[file] = dialect
             findings.extend(current)
@@ -784,6 +786,21 @@ def main() -> int:
             )
         except (OSError, ValueError) as error:
             evidence_errors.append(str(error))
+    if archived:
+        from migration_evidence import read_archive_replay_receipt
+
+        covered = set()
+        problem = "Missing verified same-database replay evidence"
+        selected = {Path(file).resolve(): (file, sql, dialects[file]) for file, sql in inputs if file != "<stdin>"}
+        if args.archive_replay_evidence:
+            try:
+                covered = read_archive_replay_receipt(args.archive_replay_evidence, selected)
+            except (OSError, ValueError) as error:
+                problem = f"Invalid archive replay evidence: {error}"
+        for file, _ in inputs:
+            if file == "<stdin>" or Path(file).resolve() not in covered:
+                dialect = dialects[file]
+                add(findings, file, 1, f"{dialect.upper()}-DBS-003", dialect, problem, "")
     failed = bool(evidence_errors) or any(item.gate == "block" for item in findings)
     if args.format == "json":
         checked_rules = set(COMMON_GUARD_RULES)
@@ -791,7 +808,7 @@ def main() -> int:
         for dialect in set(dialects.values()):
             metadata = rule_metadata(dialect)
             for rule_id in DIALECT_GUARD_RULES[dialect]:
-                if rule_id == ARCHIVE_REPLAY_RULE and not args.archived_sql:
+                if rule_id == ARCHIVE_REPLAY_RULE and not archived:
                     continue
                 if metadata[rule_id]["check"]["kind"] == "static":
                     checked_rules.add(rule_id)

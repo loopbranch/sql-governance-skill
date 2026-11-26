@@ -6,7 +6,7 @@
 
 ### Added
 
-- PostgreSQL 归档 SQL 新增 `--archived-sql` 静态阻断无保护的新增列，并明确整批重跑门禁必须覆盖索引、列、约束和 DML。新增 Block 属于 MAJOR 变更。
+- PostgreSQL 归档 SQL 新增 `--archived-sql` 静态阻断无保护的新增列。归档门禁通过 `--archive-replay-evidence` 强制校验整批 SQL 同库重跑和结构及数据快照，缺证据、失败或快照不一致均阻断。新增 Block 属于 MAJOR 变更。
 
 - 支持按批次读取可信迁移往返回执，对已经验证且定位明确的回滚逆操作单独判定。
 

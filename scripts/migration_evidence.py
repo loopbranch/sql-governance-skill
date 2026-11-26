@@ -101,3 +101,42 @@ def read_rollback_receipt(path: str, selected: dict[Path, tuple[str, str, str]])
         seen.add(key)
         operations.extend(verified)
     return operations
+
+
+def read_archive_replay_receipt(path: str, selected: dict[Path, tuple[str, str, str]]) -> set[Path]:
+    """Validate file coverage and two consecutive snapshots from a trusted runner."""
+    document = json.loads(Path(path).read_text(encoding="utf-8"))
+    if not isinstance(document, dict) or type(document.get("version")) is not int or document["version"] != 1:
+        raise ValueError("expected a version 1 archive replay receipt")
+    batches = document.get("batches")
+    if not isinstance(batches, list) or not batches:
+        raise ValueError("archive replay receipt is missing batches")
+    covered: set[Path] = set()
+    for index, batch in enumerate(batches, 1):
+        label = f"archive replay batch {index}"
+        if not isinstance(batch, dict):
+            raise ValueError(f"{label}: expected an object")
+        files, runs = batch.get("files"), batch.get("runs")
+        if not isinstance(files, list) or not files or not isinstance(runs, list) or len(runs) != 2:
+            raise ValueError(f"{label}: expected ordered files and two runs")
+        hashes = ("schema_sha256", "data_sha256")
+        for run in runs:
+            if (
+                not isinstance(run, dict) or run.get("success") is not True
+                or not isinstance(run.get("database"), str) or not run["database"].strip()
+                or not all(isinstance(run.get(key), str) and re.fullmatch(r"[0-9a-f]{64}", run[key]) for key in hashes)
+            ):
+                raise ValueError(f"{label}: unsuccessful run or incomplete snapshot")
+        if any(runs[0][key] != runs[1][key] for key in ("database", *hashes)):
+            raise ValueError(f"{label}: database, schema or data differs across runs")
+        for member in files:
+            if not isinstance(member, dict) or not isinstance(member.get("path"), str) or not member["path"].strip():
+                raise ValueError(f"{label}: invalid file")
+            file = Path(member["path"]).resolve()
+            if file not in selected or file in covered:
+                raise ValueError(f"{label}: unscanned or duplicate file: {member['path']}")
+            display, sql, dialect = selected[file]
+            if batch.get("dialect") != dialect or member.get("sha256") != sha256(sql.encode("utf-8")).hexdigest():
+                raise ValueError(f"{label}: digest or dialect mismatch: {display}")
+            covered.add(file)
+    return covered

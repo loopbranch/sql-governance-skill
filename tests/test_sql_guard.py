@@ -19,8 +19,51 @@ SPEC.loader.exec_module(sql_guard)
 
 
 class SqlGuardTest(unittest.TestCase):
+    def test_archive_gate_requires_matching_replay_for_every_file(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            sql = {
+                "upgrade.sql": "INSERT INTO t (id) VALUES (1);\n",
+                "rollback.sql": "DELETE FROM t WHERE id = 1;\n",
+            }
+            runs = [{"database": "isolated", "success": True, "schema_sha256": "a" * 64, "data_sha256": "b" * 64}] * 2
+            receipt = {"version": 1, "batches": [
+                {"dialect": "postgresql", "files": [{"path": path, "sha256": sha256(source.encode()).hexdigest()}],
+                 "runs": runs} for path, source in sql.items()
+            ]}
+            for path, source in sql.items():
+                (root / path).write_text(source, encoding="utf-8")
+            command = [sys.executable, str(MODULE_PATH), "--dialect", "postgresql", "--archived-sql", "--format", "json"]
+
+            def result(extra: list[str]) -> int:
+                return subprocess.run(command + extra + list(sql), cwd=root, capture_output=True, check=False).returncode
+
+            self.assertEqual(1, result([]))
+            path = root / "replay.json"
+            args = ["--archive-replay-evidence", str(path)]
+            path.write_text(json.dumps(receipt), encoding="utf-8")
+            self.assertEqual(0, result(args))
+            first, second = receipt["batches"]
+            for changed in (
+                [first],
+                [first, first],
+                [first, {**second, "dialect": "mysql"}],
+                [first, {**second, "files": [{**second["files"][0], "sha256": "c" * 64}]}],
+                [first, {**second, "runs": runs[:1]}],
+                *([
+                    first, {**second, "runs": [runs[0], {**runs[1], **update}]}
+                ] for update in (
+                    {"database": "another"},
+                    {"success": False},
+                    {"schema_sha256": "c" * 64},
+                    {"data_sha256": "c" * 64},
+                )),
+            ):
+                with self.subTest(batches=changed):
+                    path.write_text(json.dumps({**receipt, "batches": changed}), encoding="utf-8")
+                    self.assertEqual(1, result(args))
+
     def test_archived_postgresql_add_column_requires_replay_protection(self) -> None:
-        command = [sys.executable, str(MODULE_PATH), "--dialect", "postgresql", "--archived-sql", "--format", "json", "-"]
         for sql, blocked in (
             ("ALTER TABLE t_project ADD COLUMN template_id character varying(128);", True),
             ('ALTER TABLE "t_project"ADD COLUMN "template_id"varchar(128);', True),
@@ -36,10 +79,9 @@ class SqlGuardTest(unittest.TestCase):
             ('ALTER TABLE t_project ADD IF NOT EXISTS "constraint" text;', False),
         ):
             with self.subTest(sql=sql):
-                result = subprocess.run(command, input=sql, capture_output=True, text=True, check=False)
-                self.assertEqual(int(blocked), result.returncode, result.stderr)
+                _, findings = sql_guard.inspect("archive.sql", sql, "postgresql", archived_sql=True)
                 self.assertEqual(blocked, any(
-                    item["rule_id"] == "POSTGRESQL-UPG-012" for item in json.loads(result.stdout)["findings"]
+                    item.rule_id == "POSTGRESQL-UPG-012" for item in findings
                 ))
 
     def test_verified_rollback_only_covers_the_exact_inverse_operation(self) -> None:
