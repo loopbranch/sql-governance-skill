@@ -25,6 +25,8 @@
 
 ## 自动门禁覆盖
 
+归档 PostgreSQL SQL 应传入 `--archived-sql` 以启用 `POSTGRESQL-UPG-012`。整批重跑必须由隔离数据库执行器验证，静态检查通过不能代替重跑结果。
+
 `check.kind=static` 表示 `scripts/sql_guard.py` 已实现自动判定，列入 JSON 的 `checked_rules`。带有 `check.review_gate` 的混合规则列入 `screened_rules`。候选命中按 `review_gate=warn` 输出，明确的违规分支仍使用规则定义的 `gate`。退出码由实际发现的 Block 决定。
 
 字符集、引擎及分布式事务的候选命中需要结合部署配置和审批记录。可能承载 UUID 的主键列依据数据模型、生成方式或写入代码核实；业务编码可以使用字符类型。`POSTGRESQL-DDL-001` 的并发建索引要求需要结合生产环境、表规模和迁移事务配置评审。

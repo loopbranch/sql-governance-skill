@@ -19,6 +19,22 @@ SPEC.loader.exec_module(sql_guard)
 
 
 class SqlGuardTest(unittest.TestCase):
+    def test_archived_postgresql_add_column_requires_replay_protection(self) -> None:
+        command = [sys.executable, str(MODULE_PATH), "--dialect", "postgresql", "--archived-sql", "--format", "json", "-"]
+        for sql, blocked in (
+            ("ALTER TABLE t_project ADD COLUMN template_id character varying(128);", True),
+            ('ALTER TABLE ONLY "t,project" ADD COLUMN IF NOT EXISTS a numeric(12,2), ADD "template,id" text;', True),
+            ("ALTER TABLE t_project ADD COLUMN /* replay */ IF NOT EXISTS template_id text;", False),
+            ("ALTER TABLE t_project ADD CONSTRAINT sample CHECK (true);", False),
+            ('ALTER TABLE t_project ADD IF NOT EXISTS "constraint" text;', False),
+        ):
+            with self.subTest(sql=sql):
+                result = subprocess.run(command, input=sql, capture_output=True, text=True, check=False)
+                self.assertEqual(int(blocked), result.returncode, result.stderr)
+                self.assertEqual(blocked, any(
+                    item["rule_id"] == "POSTGRESQL-UPG-012" for item in json.loads(result.stdout)["findings"]
+                ))
+
     def test_verified_rollback_only_covers_the_exact_inverse_operation(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
